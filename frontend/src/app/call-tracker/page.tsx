@@ -640,6 +640,80 @@ export default function CallTrackerPage() {
     return () => { clearAllTimers(); socket.disconnect(); };
   }, [language]);
 
+  // ── Resilient polling fallback ─────────────────────────────────────────────
+  // Polls /api/calls/active every 3 seconds as a safety net for missed socket
+  // events (e.g., socket disconnects right when a real call is broadcast).
+  // Only fires when the page is IDLE to avoid disrupting active sessions.
+  useEffect(() => {
+    const poll = setInterval(() => {
+      if (callStateRef.current !== "IDLE") return; // Don't interrupt active/ringing calls
+
+      fetch(`${API_BASE}/calls/active`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.activeCall) return;
+          if (callStateRef.current !== "IDLE") return; // Double-check after async fetch
+          const ac = data.activeCall;
+
+          if (ac.pairingToken) setActiveToken(ac.pairingToken);
+
+          const transcriptsEn = [
+            `Bridge Alert: Incoming GSM Call detected on personal device from ${ac.number}`,
+            `Carrier: ${ac.carrier || "Carrier Operator"} | Signal: Triangulated cellular lock.`,
+            ac.riskScore > 0
+              ? `Warning: Phone line registered in system scam registries (${ac.riskScore}% Risk).`
+              : `Status: Unreported caller. Verification recommended.`,
+            `Do NOT share OTPs, transfers, or sensitive bank details.`,
+          ];
+          const transcriptsKh = [
+            `សេចក្តីជូនដំណឹង៖ រកឃើញការខលចូលប្រព័ន្ធ GSM ពីលេខ ${ac.number}`,
+            `ប្រព័ន្ធសេវា៖ ${ac.carrier || "Carrier Operator"} | កំពុងកំណត់ទីតាំងអង់តែន។`,
+            ac.riskScore > 0
+              ? `ការព្រមាន៖ ប្រព័ន្ធរកឃើញលេខទូរស័ព្ទនេះក្នុងបញ្ជីខ្មៅឆបោក (ហានិភ័យ ${ac.riskScore}%)។`
+              : `ស្ថានភាព៖ លេខទូរស័ព្ទថ្មី។ ណែនាំឱ្យផ្ទៀងផ្ទាត់មុនឆ្លើយតប។`,
+            `ដាច់ខាតកុំផ្តល់លេខសម្ងាត់ OTP ឬផ្ទេរប្រាក់ឱ្យសោះ។`,
+          ];
+
+          const polledScenario: Scenario = {
+            id: `active-${ac.number}`,
+            nameEn: ac.riskScore > 0 ? `Real Case: ${ac.riskScore}% Risk` : "Unknown GSM Caller",
+            nameKh: ac.riskScore > 0 ? `ករណីពិត៖ ហានិភ័យ ${ac.riskScore}%` : "លេខខលចូល GSM មិនស្គាល់",
+            number: ac.number,
+            category: ac.category || "OTHER",
+            riskScore: ac.riskScore,
+            locationEn: ac.location || "Cambodia (National Mobile Range)",
+            locationKh: ac.location || "ប្រទេសកម្ពុជា",
+            lat: ac.lat || 11.5564,
+            lng: ac.lng || 104.9282,
+            provider: ac.carrier || "Carrier Operator",
+            locationSource: ac.locationSource || (ac.lat && ac.lng ? "GPS Cellular Lock" : "Carrier Network (Estimated)"),
+            transcriptsEn,
+            transcriptsKh,
+          };
+
+          setSelectedScenario(polledScenario);
+          setScenarios((prev) => [polledScenario, ...prev.filter((s) => s.number !== polledScenario.number)]);
+
+          if (ac.status === "ACTIVE") {
+            setCallState("ACTIVE");
+            setSignalLocked(!!ac.lat);
+            if (ac.lat && ac.lng) setTriangulating(false);
+            const elapsed = ac.startTime ? Math.floor((Date.now() - ac.startTime) / 1000) : 0;
+            setTimer(elapsed > 0 ? elapsed : 0);
+            if (!timerIntervalRef.current) {
+              timerIntervalRef.current = setInterval(() => setTimer((prev) => prev + 1), 1000);
+            }
+            setVisibleTranscripts(language === "kh" ? polledScenario.transcriptsKh : polledScenario.transcriptsEn);
+          } else if (ac.status === "RINGING") {
+            setCallState("RINGING");
+          }
+        })
+        .catch(() => {});
+    }, 3000);
+
+    return () => clearInterval(poll);
+  }, [language]);
+
   // Call operations and timing helpers moved above mount hooks
 
   // Audio bar heights for visualizer
