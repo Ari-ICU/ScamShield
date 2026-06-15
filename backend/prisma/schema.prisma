@@ -1,0 +1,64 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ScamType {
+  BANK_FRAUD
+  FAKE_DELIVERY
+  INVESTMENT
+  LOTTERY
+  GOVERNMENT
+  ROMANCE
+  TECH_SUPPORT
+  OTHER
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  reports   Report[]
+  createdAt DateTime @default(now())
+}
+
+model PhoneNumber {
+  id          String   @id @default(uuid())
+  number      String   @unique
+  countryCode String?
+  riskScore   Int      @default(0)
+  totalReport Int      @default(0)
+  reports     Report[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([number])
+}
+
+model Report {
+  id            String      @id @default(uuid())
+  description   String?
+  category      ScamType
+  userId        String
+  numberId      String
+  province      String?
+  district      String?
+  commune       String?
+  village       String?
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumber   PhoneNumber @relation(fields: [numberId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@index([userId])
+  @@index([numberId])
+}
