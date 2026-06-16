@@ -104,6 +104,10 @@ router.get("/admin/audit-logs", authenticateJWT, requireAdmin, adminController.g
 import swaggerRouter from "./swagger.js";
 router.use(swaggerRouter);
 
+router.get("/health", (req: Request, res: Response) => {
+  return res.json({ status: "healthy", timestamp: new Date() });
+});
+
 export default router;
 
 

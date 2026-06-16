@@ -131,13 +131,15 @@ export default function Navbar() {
 
   const isActive = (href: string) => pathname === href;
 
-  const renderLanguageSwitcher = () => (
+  const renderLanguageSwitcher = (isMobile = false) => (
     <button
       onClick={() => setLanguage(language === "en" ? "kh" : "en")}
-      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700/60 text-slate-350 hover:text-white transition duration-300 ease-out cursor-pointer shrink-0 shadow-inner"
+      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-905/60 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700/60 text-slate-350 hover:text-white transition duration-300 ease-out cursor-pointer shrink-0 shadow-inner ${
+        isMobile ? "w-full justify-center py-2.5" : ""
+      }`}
     >
       <Globe className="h-4 w-4 text-red-500 animate-spin-slow" />
-      <span className="hidden sm:inline">{language === "en" ? "ខ្មែរ" : "EN"}</span>
+      <span>{language === "en" ? "ខ្មែរ" : "English (EN)"}</span>
     </button>
   );
 
@@ -147,16 +149,16 @@ export default function Navbar() {
       <div className="relative">
         <button
           onClick={() => setProfileOpen(!profileOpen)}
-          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-900/80 hover:bg-slate-850 border border-slate-800 hover:border-slate-700/50 text-slate-200 hover:text-white transition duration-300 ease-out cursor-pointer select-none shadow-md"
+          className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900/80 hover:bg-slate-850 border border-slate-800 hover:border-slate-700/50 text-slate-200 hover:text-white transition duration-300 ease-out cursor-pointer select-none shadow-md"
         >
-          <div className="h-6 w-6 rounded-full bg-gradient-to-tr from-red-650 to-orange-500 text-white flex items-center justify-center font-extrabold text-[11px] font-mono uppercase shrink-0 shadow-lg shadow-red-650/15">
+          <div className="h-6 w-6 rounded-full bg-gradient-to-tr from-red-650 to-orange-500 text-white flex items-center justify-center font-extrabold text-[11px] font-mono uppercase shrink-0 shadow-lg shadow-red-655/15">
             {user.email[0]}
           </div>
           <span className="max-w-[110px] truncate text-slate-350 text-xs hidden lg:inline-block font-sans font-medium">
             {user.email}
           </span>
           <svg
-            className={`h-3.5 w-3.5 text-slate-500 transition-transform duration-300 ${profileOpen ? "rotate-180 text-white" : ""}`}
+            className={`h-3.5 w-3.5 text-slate-505 transition-transform duration-300 ${profileOpen ? "rotate-180 text-white" : ""}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -299,13 +301,15 @@ export default function Navbar() {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 mt-2.5 w-64 glass border border-slate-800/80 rounded-2xl shadow-2xl p-2.5 space-y-1 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
-            <div className="px-3 py-1.5 border-b border-slate-900/65 mb-1.5">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                {language === "en" ? "Navigation" : "ការរុករក"}
-              </span>
-            </div>
+          <div className="absolute right-0 mt-2.5 w-72 glass border border-slate-800/80 rounded-2xl shadow-2xl p-3 space-y-3.5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+            
+            {/* Main Links */}
             <div className="space-y-1">
+              <div className="px-2 pb-1.5 border-b border-slate-900/65 mb-1.5 flex items-center justify-between">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  {language === "en" ? "Navigation" : "ការរុករក"}
+                </span>
+              </div>
               {navLinks.map((link) => {
                 const Icon = link.icon;
                 return (
@@ -313,7 +317,7 @@ export default function Navbar() {
                     key={link.href}
                     href={link.href}
                     onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-xs font-extrabold transition duration-200 border ${
+                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition duration-200 border ${
                       isActive(link.href)
                         ? "bg-slate-900 border-slate-800 text-white shadow-inner"
                         : "text-slate-400 border-transparent hover:text-white hover:bg-slate-900/60 hover:border-slate-850/30"
@@ -325,6 +329,71 @@ export default function Navbar() {
                 );
               })}
             </div>
+
+            {/* Mobile-Only Options (Hidden on Desktop to prevent duplicates) */}
+            <div className="md:hidden border-t border-slate-900/80 pt-3.5 space-y-3">
+              <div className="px-2">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  {language === "en" ? "Settings" : "ការកំណត់"}
+                </span>
+              </div>
+              
+              {/* Language switcher inside menu on mobile */}
+              <div className="px-2">
+                {renderLanguageSwitcher(true)}
+              </div>
+
+              {/* Login / Profile switcher inside menu on mobile */}
+              <div className="px-2 border-t border-slate-900/50 pt-3">
+                {user ? (
+                  <div className="space-y-2">
+                    <div className="bg-slate-950/40 p-2.5 rounded-xl border border-slate-900">
+                      <p className="text-[9px] font-bold text-slate-550 uppercase tracking-wider">{language === "en" ? "Account" : "គណនី"}</p>
+                      <p className="text-xs text-slate-200 font-extrabold truncate mt-0.5 font-mono">{user.email}</p>
+                    </div>
+                    {user.role === "ADMIN" && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setIsOpen(false)}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-slate-900 border border-slate-800 text-white"
+                      >
+                        <ShieldCheck className="h-4 w-4 text-red-550" />
+                        <span>{t("adminPanel")}</span>
+                      </Link>
+                    )}
+                    <button
+                      onClick={() => {
+                        setIsOpen(false);
+                        logout();
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-red-955/10 hover:bg-red-950/20 text-red-400 hover:text-red-300 border border-transparent hover:border-red-900/20 transition cursor-pointer"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>{t("logout")}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <Link
+                      href="/login"
+                      onClick={() => setIsOpen(false)}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-350 hover:text-white bg-slate-900 border border-slate-800 transition"
+                    >
+                      <LogIn className="h-4 w-4 text-slate-400" />
+                      <span>{t("login")}</span>
+                    </Link>
+                    <Link
+                      href="/register"
+                      onClick={() => setIsOpen(false)}
+                      className="w-full block text-center px-3 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-red-600 to-orange-500 text-white transition active:scale-95 shadow-md shadow-red-500/10"
+                    >
+                      {t("register")}
+                    </Link>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
         </>
       )}
@@ -354,29 +423,34 @@ export default function Navbar() {
 
           {/* Right Action Icons & Unified Menu Dropdown */}
           <div className="flex items-center gap-3 shrink-0 ml-auto">
-            {renderLanguageSwitcher()}
+            
+            {/* Desktop-Only Lang switcher and login/profile to keep header lightweight on mobile */}
+            <div className="hidden md:flex items-center gap-3">
+              {renderLanguageSwitcher(false)}
+              
+              {user ? (
+                renderProfileDropdown()
+              ) : (
+                <div className="flex items-center gap-2.5">
+                  <Link
+                    href="/login"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold text-slate-350 hover:text-white transition duration-200"
+                  >
+                    <LogIn className="h-4.5 w-4.5 text-slate-400" />
+                    <span>{t("login")}</span>
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="px-4.5 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-red-600 to-orange-500 hover:brightness-110 text-white transition-all duration-300 shadow-md shadow-red-500/10 hover:shadow-red-500/20 active:scale-95"
+                  >
+                    {t("register")}
+                  </Link>
+                </div>
+              )}
+            </div>
 
+            {/* Notifications (Visible on both mobile & desktop) */}
             {renderNotifications()}
-
-            {user ? (
-              renderProfileDropdown()
-            ) : (
-              <div className="flex items-center gap-2.5">
-                <Link
-                  href="/login"
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold text-slate-350 hover:text-white transition duration-200"
-                >
-                  <LogIn className="h-4.5 w-4.5 text-slate-400" />
-                  <span className="hidden sm:inline">{t("login")}</span>
-                </Link>
-                <Link
-                  href="/register"
-                  className="px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-red-600 to-orange-500 hover:brightness-110 text-white transition-all duration-300 shadow-md shadow-red-500/10 hover:shadow-red-500/20 active:scale-95"
-                >
-                  {t("register")}
-                </Link>
-              </div>
-            )}
 
             {/* Unified Menu (Desktop + Mobile) */}
             {renderMenuDropdown()}
