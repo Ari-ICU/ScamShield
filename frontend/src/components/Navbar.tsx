@@ -21,7 +21,7 @@ import {
   Eye,
   Bell
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { SOCKET_URL } from "@/lib/api";
 
@@ -35,6 +35,32 @@ export default function Navbar() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  const menuRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // Monitor clicks outside of dropdowns to close them
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, []);
 
   // Monitor scroll position to apply dynamic blurring
   useEffect(() => {
@@ -146,7 +172,7 @@ export default function Navbar() {
   const renderProfileDropdown = () => {
     if (!user) return null;
     return (
-      <div className="relative">
+      <div className="relative" ref={profileRef}>
         <button
           onClick={() => setProfileOpen(!profileOpen)}
           className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900/80 hover:bg-slate-850 border border-slate-800 hover:border-slate-700/50 text-slate-200 hover:text-white transition duration-300 ease-out cursor-pointer select-none shadow-md"
@@ -168,9 +194,7 @@ export default function Navbar() {
         </button>
 
         {profileOpen && (
-          <>
-            <div className="fixed inset-0 z-40 cursor-default" onClick={() => setProfileOpen(false)} />
-            <div className="absolute right-0 mt-2.5 w-60 glass border border-slate-800/80 rounded-2xl shadow-2xl p-2 space-y-1.5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+          <div className="absolute right-0 mt-2.5 w-60 glass border border-slate-800/80 rounded-2xl shadow-2xl p-2 space-y-1.5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
               <div className="px-3.5 py-2.5 border-b border-slate-900/60 bg-slate-950/20 rounded-t-xl">
                 <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">
                   {language === "en" ? "Active User Account" : "គណនីប្រើប្រាស់"}
@@ -200,7 +224,6 @@ export default function Navbar() {
                 {t("logout")}
               </button>
             </div>
-          </>
         )}
       </div>
     );
@@ -209,87 +232,84 @@ export default function Navbar() {
   const renderNotifications = () => {
     if (!user) return null;
     return (
-      <div className="relative">
+      <div className="relative" ref={notifRef}>
         <button
           onClick={() => setNotifOpen(!notifOpen)}
           className={`relative p-2 px-2.5 rounded-xl bg-slate-900/60 hover:bg-slate-800/80 border border-slate-805 hover:border-slate-700/65 text-slate-400 hover:text-white transition duration-300 ease-out cursor-pointer select-none ${unreadCount > 0 ? "shadow-md shadow-red-500/5 border-red-550/15" : ""}`}
         >
           <Bell className={`h-4.5 w-4.5 ${unreadCount > 0 ? "animate-wiggle text-red-400" : ""}`} />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-655 text-[9px] font-black text-white border-2 border-slate-950 animate-bounce">
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-black text-white border-2 border-slate-950 animate-bounce">
               {unreadCount}
             </span>
           )}
         </button>
 
         {notifOpen && (
-          <>
-            <div className="fixed inset-0 z-40 cursor-default" onClick={() => setNotifOpen(false)} />
-            <div className="absolute right-0 mt-2.5 w-80 glass border border-slate-800/80 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in slide-in-from-top-3 duration-200 max-h-[420px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
-              <div className="flex justify-between items-center pb-2.5 border-b border-slate-900/60 mb-2.5">
-                <h3 className="text-xs font-extrabold text-white uppercase tracking-wider font-sans">
-                  {language === "en" ? "Recent Security Feed" : "សារជូនដំណឹង"}
-                </h3>
-                {unreadCount > 0 && (
-                  <button
-                    onClick={handleMarkAllRead}
-                    className="text-[10px] font-bold text-red-500 hover:text-red-400 cursor-pointer transition"
-                  >
-                    {language === "en" ? "Mark all read" : "អានទាំងអស់"}
-                  </button>
-                )}
-              </div>
-
-              {notifications.length === 0 ? (
-                <div className="text-center py-8 text-slate-555 text-xs italic">
-                  {language === "en" ? "No notifications yet." : "មិនទាន់មានសារជូនដំណឹងទេ។"}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      onClick={() => handleMarkOneRead(n.id)}
-                      className={`p-3 rounded-xl text-xs transition duration-200 cursor-pointer flex gap-3 items-start border ${
-                        n.read
-                          ? "bg-slate-900/30 text-slate-400 border-transparent hover:bg-slate-900/60"
-                          : "bg-red-500/5 text-slate-200 border-red-500/10 hover:bg-red-500/10"
-                      }`}
-                    >
-                      <div className="mt-0.5 shrink-0">
-                        {n.type === "WATCHLIST_UPDATE" ? (
-                          <ShieldAlert className="h-4.5 w-4.5 text-red-500" />
-                        ) : n.type === "APPEAL" ? (
-                          <PhoneCall className="h-4.5 w-4.5 text-yellow-500" />
-                        ) : (
-                          <Users className="h-4.5 w-4.5 text-orange-500" />
-                        )}
-                      </div>
-                      <div className="flex-grow min-w-0">
-                        <p className="font-bold truncate text-[11px] text-white">{n.title}</p>
-                        <p className="mt-1 leading-relaxed text-slate-400 text-[10px]">
-                          {n.message}
-                        </p>
-                        <p className="mt-1.5 text-[9px] text-slate-600 font-medium font-mono">
-                          {new Date(n.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      {!n.read && (
-                        <div className="h-2 w-2 rounded-full bg-red-500 mt-2 shrink-0 animate-pulse shadow-sm shadow-red-500/50" />
-                      )}
-                    </div>
-                  ))}
-                </div>
+          <div className="absolute right-0 mt-2.5 w-80 glass border border-slate-800/80 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in slide-in-from-top-3 duration-200 max-h-[420px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
+            <div className="flex justify-between items-center pb-2.5 border-b border-slate-900/60 mb-2.5">
+              <h3 className="text-xs font-extrabold text-white uppercase tracking-wider font-sans">
+                {language === "en" ? "Recent Security Feed" : "សារជូនដំណឹង"}
+              </h3>
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAllRead}
+                  className="text-[10px] font-bold text-red-500 hover:text-red-400 cursor-pointer transition"
+                >
+                  {language === "en" ? "Mark all read" : "អានទាំងអស់"}
+                </button>
               )}
             </div>
-          </>
+
+            {notifications.length === 0 ? (
+              <div className="text-center py-8 text-slate-555 text-xs italic">
+                {language === "en" ? "No notifications yet." : "មិនទាន់មានសារជូនដំណឹងទេ។"}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    onClick={() => handleMarkOneRead(n.id)}
+                    className={`p-3 rounded-xl text-xs transition duration-200 cursor-pointer flex gap-3 items-start border ${
+                      n.read
+                        ? "bg-slate-900/30 text-slate-400 border-transparent hover:bg-slate-900/60"
+                        : "bg-red-500/5 text-slate-200 border-red-500/10 hover:bg-red-500/10"
+                    }`}
+                  >
+                    <div className="mt-0.5 shrink-0">
+                      {n.type === "WATCHLIST_UPDATE" ? (
+                        <ShieldAlert className="h-4.5 w-4.5 text-red-500" />
+                      ) : n.type === "APPEAL" ? (
+                        <PhoneCall className="h-4.5 w-4.5 text-yellow-500" />
+                      ) : (
+                        <Users className="h-4.5 w-4.5 text-orange-500" />
+                      )}
+                    </div>
+                    <div className="flex-grow min-w-0">
+                      <p className="font-bold truncate text-[11px] text-white">{n.title}</p>
+                      <p className="mt-1 leading-relaxed text-slate-400 text-[10px]">
+                        {n.message}
+                      </p>
+                      <p className="mt-1.5 text-[9px] text-slate-600 font-medium font-mono">
+                        {new Date(n.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    {!n.read && (
+                      <div className="h-2 w-2 rounded-full bg-red-500 mt-2 shrink-0 animate-pulse shadow-sm shadow-red-500/50" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
     );
   };
 
   const renderMenuDropdown = () => (
-    <div className="relative">
+    <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-black bg-slate-900/60 hover:bg-slate-800/80 border border-slate-805 hover:border-slate-700/65 text-slate-200 hover:text-white transition duration-300 ease-out cursor-pointer select-none shadow-md active:scale-95"
@@ -299,9 +319,7 @@ export default function Navbar() {
       </button>
 
       {isOpen && (
-        <>
-          <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 mt-2.5 w-72 glass border border-slate-800/80 rounded-2xl shadow-2xl p-3 space-y-3.5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+        <div className="absolute right-0 mt-2.5 w-72 glass border border-slate-800/80 rounded-2xl shadow-2xl p-3 space-y-3.5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
             
             {/* Main Links */}
             <div className="space-y-1">
@@ -395,7 +413,6 @@ export default function Navbar() {
             </div>
 
           </div>
-        </>
       )}
     </div>
   );
