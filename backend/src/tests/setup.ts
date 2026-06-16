@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals';
+import { jest, beforeEach } from '@jest/globals';
 import { prismaMock } from '../prisma/prismaClient.js';
 
 // Convert all prismaMock placeholder methods into Jest mock functions
@@ -12,7 +12,7 @@ for (const modelKey of Object.keys(prismaMock)) {
 export { prismaMock };
 
 // Mock prismaClient.js and assign to global for ESM singleton compatibility
-(global as any).prisma = prismaMock;
+(globalThis as any).prisma = prismaMock;
 
 jest.mock('../prisma/prismaClient.js', () => ({
   __esModule: true,
@@ -24,11 +24,11 @@ jest.mock('../prisma/prismaClient.js', () => ({
 // Also mock Redis client
 jest.mock('../utils/redis.js', () => ({
   __esModule: true,
-  getCache: jest.fn().mockResolvedValue(null as any),
-  setCache: jest.fn().mockResolvedValue(undefined as any),
-  delCache: jest.fn().mockResolvedValue(undefined as any),
-  isCacheAvailable: jest.fn().mockReturnValue(true),
-  getRedisClient: jest.fn().mockReturnValue(null as any),
+  getCache: (jest.fn() as any).mockResolvedValue(null),
+  setCache: (jest.fn() as any).mockResolvedValue(undefined),
+  delCache: (jest.fn() as any).mockResolvedValue(undefined),
+  isCacheAvailable: (jest.fn() as any).mockReturnValue(true),
+  getRedisClient: (jest.fn() as any).mockReturnValue(null),
 }));
 
 // Mock socket broadcasting functions to prevent socket connection errors
@@ -48,7 +48,7 @@ jest.mock('../socket/socket.js', () => ({
 jest.mock('bullmq', () => ({
   __esModule: true,
   Queue: jest.fn().mockImplementation(() => ({
-    add: jest.fn().mockResolvedValue({ id: 'mock-job-id' } as any),
+    add: (jest.fn() as any).mockResolvedValue({ id: 'mock-job-id' }),
   })),
   Worker: jest.fn().mockImplementation(() => ({
     on: jest.fn(),
@@ -59,9 +59,9 @@ jest.mock('bullmq', () => ({
 jest.mock('../jobs/worker.js', () => ({
   __esModule: true,
   jobQueue: {
-    add: jest.fn().mockResolvedValue({ id: 'mock-job-id' } as any),
+    add: (jest.fn() as any).mockResolvedValue({ id: 'mock-job-id' }),
   },
-  recalculatePhoneNumberRisk: jest.fn().mockResolvedValue(75 as any),
+  recalculatePhoneNumberRisk: (jest.fn() as any).mockResolvedValue(75),
 }));
 
 
