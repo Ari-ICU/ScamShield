@@ -21,7 +21,7 @@ export async function getWatchlist(req: AuthenticatedRequest, res: Response) {
         phoneNumber: {
           include: {
             reports: {
-              where: { status: { not: "REJECTED" } },
+              where: { status: { notIn: ["FALSE_REPORT", "INSUFFICIENT_EVIDENCE"] } },
               orderBy: { createdAt: "desc" },
               take: 1,
             },

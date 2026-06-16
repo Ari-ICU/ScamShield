@@ -22,7 +22,13 @@ import {
   AlertTriangle,
   MapPin,
   Eye,
-  TrendingUp
+  TrendingUp,
+  TrendingDown,
+  Image,
+  FileAudio,
+  FileText,
+  Map,
+  Info
 } from "lucide-react";
 
 interface Evidence {
@@ -424,6 +430,169 @@ function SearchResultsContent() {
           <div className="lg:col-span-2 space-y-6">
             {/* Risk Badge Alert Banner */}
             <RiskBadge score={data.riskScore} />
+
+            {/* Number Intelligence Profile Card */}
+            {(() => {
+              const latestStatus = data.reports.length > 0 ? data.reports[0].status : "SAFE";
+              const activeSince = data.reports.length > 0 
+                ? new Date(Math.min(...data.reports.map(r => new Date(r.createdAt).getTime()))).toLocaleDateString(language === "kh" ? "km-KH" : "en-US", { year: "numeric", month: "long", day: "numeric" })
+                : (language === "kh" ? "គ្មានកំណត់ត្រា" : "No record");
+              const uniqueProvinces = Array.from(new Set(data.reports.map(r => r.province).filter(Boolean)));
+              
+              let trendDirection = "stable";
+              let trendDiff = 0;
+              if (data.historyTimeline && data.historyTimeline.length >= 2) {
+                const cur = data.historyTimeline[data.historyTimeline.length - 1].riskScore;
+                const prev = data.historyTimeline[data.historyTimeline.length - 2].riskScore;
+                trendDiff = cur - prev;
+                if (cur > prev) trendDirection = "increasing";
+                else if (cur < prev) trendDirection = "decreasing";
+              }
+
+              return (
+                <div className="glass p-6 rounded-2xl border border-slate-800 space-y-6 relative overflow-hidden font-sans">
+                  <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-red-500/10 via-red-500/30 to-red-500/10" />
+                  
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-900/60 pb-5">
+                    <div>
+                      <h3 className="font-bold text-white text-base flex items-center gap-2">
+                        <Info className="h-4.5 w-4.5 text-red-500" />
+                        {language === "kh" ? "ព័ត៌មានលម្អិតនៃលេខទូរស័ព្ទ" : "Number Intelligence Profile"}
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {language === "kh" ? "ការវិភាគហានិភ័យ និងភស្តុតាងដែលបានប្រមូលផ្តុំពីរាយការណ៍របស់សហគមន៍" : "Multi-factor risk analysis and compiled community evidence files."}
+                      </p>
+                    </div>
+                    
+                    {/* Active Since */}
+                    <div className="bg-slate-950/50 p-2.5 px-4 rounded-xl border border-slate-900/60 text-xs flex flex-col gap-0.5 self-start sm:self-auto shrink-0 font-sans font-medium">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        {language === "kh" ? "សកម្មតាំងពី" : "Active Since"}
+                      </span>
+                      <span className="text-slate-200 font-mono">
+                        {activeSince}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Status and Scam Type Banner */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-900/80 space-y-1">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                        {language === "kh" ? "ស្ថានភាពស៊ើបអង្កេត" : "Investigation Status"}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide px-2.5 py-1 rounded-lg border mt-1 ${
+                        latestStatus === "CONFIRMED_SCAM" || latestStatus === "APPROVED"
+                          ? "bg-red-500/10 text-red-400 border-red-500/20"
+                          : latestStatus === "FALSE_REPORT" || latestStatus === "REJECTED"
+                          ? "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                          : latestStatus === "INSUFFICIENT_EVIDENCE"
+                          ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                          : latestStatus === "UNDER_REVIEW"
+                          ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                          : latestStatus === "PENDING"
+                          ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                          : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      }`}>
+                        {latestStatus === "CONFIRMED_SCAM" || latestStatus === "APPROVED" ? (language === "kh" ? "បញ្ជាក់ថាបោកប្រាស់" : "Confirmed Scam") :
+                         latestStatus === "FALSE_REPORT" || latestStatus === "REJECTED" ? (language === "kh" ? "របាយការណ៍មិនពិត" : "False Report") :
+                         latestStatus === "INSUFFICIENT_EVIDENCE" ? (language === "kh" ? "មិនគ្រប់គ្រាន់ភស្តុតាង" : "Insufficient Evidence") :
+                         latestStatus === "UNDER_REVIEW" ? (language === "kh" ? "កំពុងត្រួតពិនិត្យ" : "Under Review") :
+                         latestStatus === "PENDING" ? (language === "kh" ? "រង់ចាំការពិនិត្យ" : "Pending Audit") :
+                         (language === "kh" ? "សុវត្ថិភាព" : "Safe")}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-900/80 space-y-1">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                        {language === "kh" ? "ប្រភេទឆបោកចម្បង" : "Primary Scam Type"}
+                      </span>
+                      <span className="text-white text-xs font-bold uppercase tracking-wide bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-850 inline-block mt-1 truncate max-w-full">
+                        {data.commonScamType === "NONE" 
+                          ? (language === "kh" ? "គ្មាន" : "None")
+                          : (t(data.commonScamType) || formatCategory(data.commonScamType))}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-900/80 space-y-1">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                        {language === "kh" ? "និន្នាការហានិភ័យ" : "Risk Trend"}
+                      </span>
+                      <div className="flex items-center gap-1.5 mt-1 font-sans">
+                        {trendDirection === "increasing" ? (
+                          <div className="flex items-center gap-1 text-red-500 font-black text-xs">
+                            <TrendingUp className="h-4.5 w-4.5" />
+                            <span>{language === "kh" ? "កើនឡើង" : "Increasing"} (+{trendDiff}%)</span>
+                          </div>
+                        ) : trendDirection === "decreasing" ? (
+                          <div className="flex items-center gap-1 text-emerald-500 font-black text-xs">
+                            <TrendingDown className="h-4.5 w-4.5" />
+                            <span>{language === "kh" ? "ថយចុះ" : "Decreasing"} ({trendDiff}%)</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-slate-400 font-black text-xs">
+                            <span className="text-sm font-bold">—</span>
+                            <span>{language === "kh" ? "ថេរ" : "Stable"}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Geographic and Evidence Breakdown */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    
+                    {/* Affected Provinces */}
+                    <div className="bg-[#0b0c10]/40 p-4 rounded-xl border border-slate-900/80 space-y-3.5">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Map className="h-4 w-4 text-orange-500" />
+                        {language === "kh" ? "ខេត្តដែលរងផលប៉ះពាល់" : "Affected Provinces"}
+                      </h4>
+                      {uniqueProvinces.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {uniqueProvinces.map((prov, index) => (
+                            <span key={index} className="text-xs font-semibold text-slate-300 bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-slate-850 flex items-center gap-1">
+                              <MapPin className="h-3 w-3 text-red-500/80" />
+                              {prov}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500 leading-relaxed font-sans font-medium">
+                          {language === "kh" ? "គ្មានកំណត់ត្រាខេត្តជាក់លាក់ (ប្រព័ន្ធជាតិ)" : "No specific province locked (National range)."}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Evidence Profile */}
+                    <div className="bg-[#0b0c10]/40 p-4 rounded-xl border border-slate-900/80 space-y-3.5">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <FileText className="h-4 w-4 text-emerald-500" />
+                        {language === "kh" ? "ទម្រង់ភស្តុតាង" : "Evidence Profile"}
+                      </h4>
+                      <div className="grid grid-cols-3 gap-2.5 font-sans font-semibold">
+                        <div className="bg-slate-955/60 p-2.5 rounded-lg border border-slate-900/60 text-center flex flex-col items-center">
+                          <Image className="h-4.5 w-4.5 text-blue-400 mb-1" />
+                          <span className="text-white font-bold text-xs font-mono">{data.evidenceCounts.screenshots}</span>
+                          <span className="text-[9px] text-slate-550 font-bold uppercase mt-0.5">Images</span>
+                        </div>
+                        <div className="bg-slate-955/60 p-2.5 rounded-lg border border-slate-900/60 text-center flex flex-col items-center">
+                          <FileAudio className="h-4.5 w-4.5 text-emerald-400 mb-1" />
+                          <span className="text-white font-bold text-xs font-mono">{data.evidenceCounts.audio}</span>
+                          <span className="text-[9px] text-slate-550 font-bold uppercase mt-0.5">Audio</span>
+                        </div>
+                        <div className="bg-slate-955/60 p-2.5 rounded-lg border border-slate-900/60 text-center flex flex-col items-center">
+                          <FileText className="h-4.5 w-4.5 text-orange-400 mb-1" />
+                          <span className="text-white font-bold text-xs font-mono">{data.evidenceCounts.documents}</span>
+                          <span className="text-[9px] text-slate-550 font-bold uppercase mt-0.5">Docs</span>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="glass p-6 rounded-2xl border border-slate-800 space-y-6">
               <h3 className="font-bold text-lg text-white border-b border-slate-900 pb-4">

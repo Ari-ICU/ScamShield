@@ -40,17 +40,23 @@ export async function recalculatePhoneNumberRisk(numberId: string): Promise<numb
 
   if (!phoneNumber) return 0;
 
-  // Fetch all reports except rejected ones
+  // Fetch all reports except false reports and insufficient evidence
   const reports = await prisma.report.findMany({
     where: {
       numberId: numberId,
-      status: { not: "REJECTED" },
+      status: { notIn: ["FALSE_REPORT", "INSUFFICIENT_EVIDENCE", "REJECTED" as any] },
     },
     include: {
       user: {
         select: {
           role: true,
           reporterScore: true,
+          reporterProfile: {
+            select: {
+              reputationScore: true,
+              verificationLevel: true,
+            },
+          },
         },
       },
       evidence: {
@@ -65,10 +71,11 @@ export async function recalculatePhoneNumberRisk(numberId: string): Promise<numb
 
   const reportInputs: ReportInput[] = reports.map((r) => ({
     createdAt: r.createdAt,
-    status: r.status,
+    status: r.status as any,
     evidenceCount: r.evidence.length,
     reporterRole: r.user.role,
     reporterScore: r.user.reporterScore,
+    reporterVerificationLevel: r.user.reporterProfile?.verificationLevel || "NEW_USER",
     category: r.category,
   }));
 

@@ -1,9 +1,10 @@
 export interface ReportInput {
   createdAt: Date;
-  status: "PENDING" | "APPROVED" | "REJECTED" | "UNDER_REVIEW";
+  status: "PENDING" | "UNDER_REVIEW" | "CONFIRMED_SCAM" | "INSUFFICIENT_EVIDENCE" | "FALSE_REPORT";
   evidenceCount: number;
   reporterRole: "USER" | "ADMIN";
   reporterScore: number;
+  reporterVerificationLevel?: string;
   category: string;
 }
 
@@ -66,7 +67,13 @@ export function calculateDetailedRiskScore(factors: DetailedRiskFactors): number
   const uniqueReporters = new Set<string>();
 
   for (const report of reports) {
-    if (report.status === "REJECTED") continue;
+    if (
+      report.status === "FALSE_REPORT" ||
+      report.status === "INSUFFICIENT_EVIDENCE" ||
+      (report.status as any) === "REJECTED"
+    ) {
+      continue;
+    }
 
     // 1. Base score contribution per report
     let baseScore = 15;
@@ -76,19 +83,26 @@ export function calculateDetailedRiskScore(factors: DetailedRiskFactors): number
     baseScore += evidenceBonus;
 
     // 3. Reporter Reputation Weight
-    // New User -> 1x, Verified Reporter (reporterScore >= 50) -> 2x, Moderator (ADMIN) -> 5x
+    // Trusted Reporter -> 2x, Verified Reporter -> 3x, Moderator -> 5x, New User -> 1x
     let reporterWeight = 1.0;
-    if (report.reporterRole === "ADMIN") {
+    if (report.reporterRole === "ADMIN" || report.reporterVerificationLevel === "MODERATOR") {
       reporterWeight = 5.0;
+    } else if (report.reporterVerificationLevel === "VERIFIED") {
+      reporterWeight = 3.0;
+    } else if (report.reporterVerificationLevel === "TRUSTED") {
+      reporterWeight = 2.0;
     } else if (report.reporterScore >= 50) {
+      // Fallback for backward compatibility
       reporterWeight = 2.0;
     }
 
     // 4. Moderator Approval Confidence factor
-    // APPROVED reports get 100% weight. PENDING or UNDER_REVIEW get 50% weight.
-    let confidenceFactor = 0.5;
-    if (report.status === "APPROVED") {
+    // CONFIRMED_SCAM reports get 100% weight. PENDING or UNDER_REVIEW get 50% weight.
+    let confidenceFactor = 0.0;
+    if (report.status === "CONFIRMED_SCAM" || (report.status as any) === "APPROVED") {
       confidenceFactor = 1.0;
+    } else if (report.status === "PENDING" || report.status === "UNDER_REVIEW") {
+      confidenceFactor = 0.5;
     }
 
     // 5. Time Decay (older reports lose weight)
@@ -124,7 +138,9 @@ export function calculateDetailedRiskScore(factors: DetailedRiskFactors): number
   // 7. Report Consistency Bonus
   // If a single scam category dominates reports (>= 60%), add +15 points
   let hasConsistency = false;
-  const validReportsCount = reports.filter(r => r.status !== "REJECTED").length;
+  const validReportsCount = reports.filter(
+    r => r.status !== "FALSE_REPORT" && r.status !== "INSUFFICIENT_EVIDENCE" && (r.status as any) !== "REJECTED"
+  ).length;
   if (validReportsCount > 1) {
     for (const cat in categories) {
       const percentage = categories[cat] / validReportsCount;

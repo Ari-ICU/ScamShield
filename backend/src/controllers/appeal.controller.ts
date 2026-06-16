@@ -135,7 +135,7 @@ export async function resolveAppeal(req: AuthenticatedRequest, res: Response) {
       // Reject all reports for this number
       await prisma.report.updateMany({
         where: { numberId: appeal.numberId },
-        data: { status: "REJECTED" },
+        data: { status: "FALSE_REPORT" },
       });
 
       // Reset riskScore and totalReport to 0 since all reports are now rejected

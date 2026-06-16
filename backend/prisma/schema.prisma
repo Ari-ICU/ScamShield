@@ -25,9 +25,10 @@ enum ScamType {
 
 enum ReportStatus {
   PENDING
-  APPROVED
-  REJECTED
   UNDER_REVIEW
+  CONFIRMED_SCAM
+  INSUFFICIENT_EVIDENCE
+  FALSE_REPORT
 }
 
 enum AppealStatus {
@@ -37,15 +38,28 @@ enum AppealStatus {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  password      String
-  role          Role           @default(USER)
-  reporterScore Int            @default(0)
-  reports       Report[]
-  watchlist     Watchlist[]
-  notifications Notification[]
-  createdAt     DateTime       @default(now())
+  id              String           @id @default(uuid())
+  email           String           @unique
+  password        String
+  role            Role             @default(USER)
+  reporterScore   Int              @default(0)
+  reports         Report[]
+  watchlist       Watchlist[]
+  notifications   Notification[]
+  reporterProfile ReporterProfile?
+  createdAt       DateTime         @default(now())
+}
+
+model ReporterProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reputationScore   Int      @default(0)
+  approvedReports   Int      @default(0)
+  rejectedReports   Int      @default(0)
+  verificationLevel String   @default("NEW_USER")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model PhoneNumber {

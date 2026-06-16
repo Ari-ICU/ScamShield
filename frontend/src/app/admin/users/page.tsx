@@ -10,6 +10,12 @@ interface AdminUser {
   email: string;
   role: string;
   createdAt: string;
+  reporterProfile?: {
+    reputationScore: number;
+    approvedReports: number;
+    rejectedReports: number;
+    verificationLevel: string;
+  } | null;
   _count: {
     reports: number;
   };
@@ -169,6 +175,7 @@ export default function UserAccounts() {
                   <tr>
                     <th className="px-6 py-4">{t("userEmailCol")}</th>
                     <th className="px-6 py-4">{t("roleCol")}</th>
+                    <th className="px-6 py-4">Reputation / Level</th>
                     <th className="px-6 py-4">{t("totalReportsCol")}</th>
                     <th className="px-6 py-4">{t("joinDateCol")}</th>
                     <th className="px-6 py-4 text-right">Actions</th>
@@ -192,7 +199,7 @@ export default function UserAccounts() {
                           onClick={() => handleToggleRole(usr)}
                           className={`inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold rounded-full font-mono uppercase transition border cursor-pointer ${
                             usr.role === "ADMIN" 
-                              ? "bg-red-500/10 border-red-500/35 text-red-450 hover:bg-red-500/20" 
+                              ? "bg-red-500/10 border-red-500/35 text-red-455 hover:bg-red-500/20" 
                               : "bg-slate-950 border-slate-850 text-slate-400 hover:bg-slate-900 hover:text-white"
                           } disabled:opacity-50 disabled:cursor-not-allowed`}
                           title={user?.id === usr.id ? "Cannot toggle your own role" : "Click to switch role"}
@@ -200,6 +207,28 @@ export default function UserAccounts() {
                           {usr.role === "ADMIN" ? <Shield className="h-3 w-3" /> : <User className="h-3 w-3" />}
                           {usr.role}
                         </button>
+                      </td>
+                      <td className="px-6 py-4">
+                        {usr.reporterProfile ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-mono font-bold text-white text-xs">
+                              {usr.reporterProfile.reputationScore}%
+                            </span>
+                            <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border w-fit ${
+                              usr.reporterProfile.verificationLevel === "MODERATOR"
+                                ? "bg-red-500/10 text-red-400 border-red-500/20"
+                                : usr.reporterProfile.verificationLevel === "VERIFIED"
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                : usr.reporterProfile.verificationLevel === "TRUSTED"
+                                ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                                : "bg-slate-800 text-slate-400 border-slate-700"
+                            }`}>
+                              {usr.reporterProfile.verificationLevel.replace("_", " ")}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-500 text-xs">—</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 font-mono font-semibold">{usr._count.reports}</td>
                       <td className="px-6 py-4 text-slate-500 text-xs">

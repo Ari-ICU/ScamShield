@@ -8,6 +8,7 @@ import { logAdminAction } from "../utils/auditLogger.js";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { ReportStatus, Role } from "@prisma/client";
 import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
+import { calculateReputationScore, getVerificationLevel } from "../utils/reputation.js";
 
 // Helper function to recalculate risk scores using detailed risk engine
 async function recalculateRiskAndTotal(numberId: string) {
@@ -165,36 +166,57 @@ export async function updateReport(req: AuthenticatedRequest, res: Response) {
     if (status && status !== report.status) {
       await recalculateRiskAndTotal(report.numberId);
 
-      // Adjust reporter reputation score
+      // Adjust reporter reputation score dynamically based on all of their reports
       const reporterId = report.userId;
-      let pointsDiff = 0;
-      if (report.status === "PENDING" && status === "APPROVED") pointsDiff = 10;
-      else if (report.status === "PENDING" && status === "REJECTED") pointsDiff = -5;
-      else if (report.status === "APPROVED" && status === "REJECTED") pointsDiff = -15;
-      else if (report.status === "REJECTED" && status === "APPROVED") pointsDiff = 15;
-      else if (report.status === "APPROVED" && (status === "PENDING" || status === "UNDER_REVIEW")) pointsDiff = -10;
-      else if (report.status === "REJECTED" && (status === "PENDING" || status === "UNDER_REVIEW")) pointsDiff = 5;
-      else if ((report.status === "PENDING" || report.status === "UNDER_REVIEW") && status === "APPROVED") pointsDiff = 10;
-      else if ((report.status === "PENDING" || report.status === "UNDER_REVIEW") && status === "REJECTED") pointsDiff = -5;
+      const reporter = await prisma.user.findUnique({
+        where: { id: reporterId },
+        include: { reporterProfile: true },
+      });
 
-      if (pointsDiff !== 0) {
-        const user = await prisma.user.findUnique({ where: { id: reporterId } });
-        if (user) {
-          const newScore = Math.max(0, user.reporterScore + pointsDiff);
-          await prisma.user.update({
-            where: { id: reporterId },
-            data: { reporterScore: newScore },
-          });
-        }
+      if (reporter) {
+        const allReports = await prisma.report.findMany({
+          where: { userId: reporterId },
+          select: { status: true },
+        });
+
+        const approvedReports = allReports.filter((r) => r.status === "CONFIRMED_SCAM").length;
+        const rejectedReports = allReports.filter((r) => r.status === "FALSE_REPORT").length;
+
+        const newScore = calculateReputationScore(approvedReports, rejectedReports);
+        const newLevel = getVerificationLevel(newScore, reporter.role);
+
+        await prisma.reporterProfile.upsert({
+          where: { userId: reporterId },
+          create: {
+            userId: reporterId,
+            approvedReports,
+            rejectedReports,
+            reputationScore: newScore,
+            verificationLevel: newLevel,
+          },
+          update: {
+            approvedReports,
+            rejectedReports,
+            reputationScore: newScore,
+            verificationLevel: newLevel,
+          },
+        });
+
+        // Sync legacy field User.reporterScore
+        await prisma.user.update({
+          where: { id: reporterId },
+          data: { reporterScore: newScore },
+        });
       }
 
       // Create in-app notification for reporter
       const { sendInAppNotification } = await import("../socket/socket.js");
       const statusLabels: Record<string, string> = {
-        APPROVED: "Approved",
-        REJECTED: "Rejected",
+        CONFIRMED_SCAM: "marked as Confirmed Scam",
+        FALSE_REPORT: "marked as a False Report",
+        INSUFFICIENT_EVIDENCE: "marked as having Insufficient Evidence",
         UNDER_REVIEW: "placed Under Review",
-        PENDING: "set back to Pending"
+        PENDING: "set back to Pending",
       };
       const label = statusLabels[status] || status;
 
@@ -270,6 +292,7 @@ export async function getUsers(req: Request, res: Response) {
       prisma.user.findMany({
         select: {
           id: true, email: true, role: true, createdAt: true,
+          reporterProfile: true,
           _count: { select: { reports: true } },
         },
         orderBy: { createdAt: "desc" },

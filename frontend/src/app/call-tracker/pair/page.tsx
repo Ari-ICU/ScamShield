@@ -581,7 +581,7 @@ export default function MobilePairPage() {
                       </div>
 
                       {/* Truecaller alert banner */}
-                      <div className={`p-4 rounded-xl border text-left space-y-1.5 ${
+                      <div className={`p-4 rounded-xl border text-left space-y-2.5 relative overflow-hidden ${
                         lookupResult.riskScore >= 75
                           ? "bg-red-500/10 border-red-500/25 text-red-200"
                           : lookupResult.riskScore >= 30
@@ -589,19 +589,19 @@ export default function MobilePairPage() {
                           : "bg-emerald-500/10 border-emerald-500/25 text-emerald-200"
                       }`}>
                         <div className="flex justify-between items-center">
-                          <span className="text-[10px] font-bold uppercase tracking-wider">
+                          <span className="text-[10px] font-black uppercase tracking-wider">
                             {lookupResult.isScam ? "⚠️ SCAM ALERT" : "✓ SCAMSHIELD VERIFIED"}
                           </span>
-                          <span className="text-xs font-black font-mono">
+                          <span className="text-sm font-black font-mono">
                             {lookupResult.riskScore}%
                           </span>
                         </div>
                         <p className="text-xs font-bold text-white leading-relaxed">
                           {lookupResult.warningMessage}
                         </p>
-                        <div className="text-[9px] text-slate-500 leading-normal flex flex-wrap gap-x-2.5 gap-y-1 pt-1 border-t border-white/5">
-                          <span>Category: <strong className="text-slate-350">{lookupResult.scamType}</strong></span>
-                          <span>Reports: <strong className="text-slate-350">{lookupResult.totalReports}</strong></span>
+                        <div className="text-[9px] text-slate-400 font-semibold leading-normal flex flex-wrap gap-x-3 gap-y-1 pt-2 border-t border-white/5 font-sans">
+                          <span>SCAM TYPE: <strong className="text-slate-200 font-bold uppercase font-mono">{lookupResult.scamType.replace(/_/g, " ")}</strong></span>
+                          <span>REPORTS: <strong className="text-slate-200 font-bold font-mono">{lookupResult.totalReports}</strong></span>
                         </div>
                       </div>
 

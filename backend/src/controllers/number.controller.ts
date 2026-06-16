@@ -179,7 +179,7 @@ export async function searchNumber(req: Request, res: Response) {
       include: {
         reports: {
           where: {
-            status: { not: "REJECTED" }
+            status: { notIn: ["FALSE_REPORT", "INSUFFICIENT_EVIDENCE", "REJECTED" as any] }
           },
           orderBy: { createdAt: "desc" },
           include: {
@@ -187,7 +187,12 @@ export async function searchNumber(req: Request, res: Response) {
             user: {
               select: {
                 role: true,
-                reporterScore: true
+                reporterScore: true,
+                reporterProfile: {
+                  select: {
+                    verificationLevel: true
+                  }
+                }
               }
             }
           }
@@ -225,10 +230,11 @@ export async function searchNumber(req: Request, res: Response) {
     
     const reportInputs = dbNum.reports.map((r) => ({
       createdAt: r.createdAt,
-      status: r.status,
+      status: r.status as any,
       evidenceCount: r.evidence.length,
       reporterRole: r.user.role,
       reporterScore: r.user.reporterScore,
+      reporterVerificationLevel: r.user.reporterProfile?.verificationLevel || "NEW_USER",
       category: r.category,
     }));
 
@@ -261,6 +267,7 @@ export async function searchNumber(req: Request, res: Response) {
     const recentReportsCount = await prisma.report.count({
       where: {
         numberId: dbNum.id,
+        status: { notIn: ["FALSE_REPORT", "INSUFFICIENT_EVIDENCE", "REJECTED" as any] },
         createdAt: { gte: sevenDaysAgo },
       },
     });
@@ -326,10 +333,11 @@ export async function searchNumber(req: Request, res: Response) {
 
       const inputs = reportsBefore.map((r) => ({
         createdAt: r.createdAt,
-        status: r.status,
+        status: r.status as any,
         evidenceCount: r.evidence.length,
         reporterRole: r.user.role,
         reporterScore: r.user.reporterScore,
+        reporterVerificationLevel: r.user.reporterProfile?.verificationLevel || "NEW_USER",
         category: r.category,
       }));
 
@@ -404,9 +412,19 @@ export async function lookupNumber(req: Request, res: Response) {
       where: { number: cleanNumber },
       include: {
         reports: {
-          where: { status: { not: "REJECTED" } },
+          where: { status: { notIn: ["FALSE_REPORT", "INSUFFICIENT_EVIDENCE", "REJECTED" as any] } },
           include: {
-            user: { select: { role: true, reporterScore: true } },
+            user: {
+              select: {
+                role: true,
+                reporterScore: true,
+                reporterProfile: {
+                  select: {
+                    verificationLevel: true
+                  }
+                }
+              }
+            },
             evidence: true,
           },
         },
@@ -433,10 +451,11 @@ export async function lookupNumber(req: Request, res: Response) {
     const { calculateDetailedRiskScore } = await import("../services/riskEngine.js");
     const reportInputs = dbNum.reports.map((r) => ({
       createdAt: r.createdAt,
-      status: r.status,
+      status: r.status as any,
       evidenceCount: r.evidence.length,
       reporterRole: r.user.role,
       reporterScore: r.user.reporterScore,
+      reporterVerificationLevel: r.user.reporterProfile?.verificationLevel || "NEW_USER",
       category: r.category,
     }));
 

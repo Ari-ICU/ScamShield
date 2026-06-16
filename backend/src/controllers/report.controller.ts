@@ -62,6 +62,22 @@ export async function createReport(req: AuthenticatedRequest, res: Response) {
       });
     }
 
+    // Ensure the reporting user has a ReporterProfile initialized
+    const existingProfile = await prisma.reporterProfile.findUnique({
+      where: { userId },
+    });
+    if (!existingProfile) {
+      await prisma.reporterProfile.create({
+        data: {
+          userId,
+          reputationScore: 0,
+          approvedReports: 0,
+          rejectedReports: 0,
+          verificationLevel: req.user?.role === "ADMIN" ? "MODERATOR" : "NEW_USER",
+        },
+      });
+    }
+
     // 2. Create the Report link
     const report = await prisma.report.create({
       data: {

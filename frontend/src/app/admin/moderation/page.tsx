@@ -58,7 +58,7 @@ export default function ModerationQueue() {
   const [editDescription, setEditDescription] = useState("");
   const [editStatus, setEditStatus] = useState("");
 
-  const STATUSES = ["PENDING", "APPROVED", "REJECTED", "UNDER_REVIEW"];
+  const STATUSES = ["PENDING", "UNDER_REVIEW", "CONFIRMED_SCAM", "INSUFFICIENT_EVIDENCE", "FALSE_REPORT"];
 
   const loadReports = async (pageNumber = page) => {
     setLoading(true);
@@ -213,15 +213,27 @@ export default function ModerationQueue() {
                         {t(r.category) || formatCategory(r.category)}
                       </span>
                       <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
-                        r.status === "APPROVED"
-                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
-                          : r.status === "REJECTED"
+                        r.status === "CONFIRMED_SCAM" || r.status === "APPROVED"
                           ? "bg-red-500/15 text-red-400 border border-red-500/20"
+                          : r.status === "FALSE_REPORT" || r.status === "REJECTED"
+                          ? "bg-slate-500/15 text-slate-400 border border-slate-500/20"
+                          : r.status === "INSUFFICIENT_EVIDENCE"
+                          ? "bg-orange-500/15 text-orange-400 border border-orange-500/20"
                           : r.status === "UNDER_REVIEW"
                           ? "bg-blue-500/15 text-blue-400 border border-blue-500/20"
                           : "bg-yellow-500/15 text-yellow-400 border border-yellow-500/20"
                       }`}>
-                        {r.status}
+                        {r.status === "CONFIRMED_SCAM"
+                          ? "Confirmed Scam"
+                          : r.status === "FALSE_REPORT"
+                          ? "False Report"
+                          : r.status === "INSUFFICIENT_EVIDENCE"
+                          ? "Insufficient Evidence"
+                          : r.status === "UNDER_REVIEW"
+                          ? "Under Review"
+                          : r.status === "PENDING"
+                          ? "Pending"
+                          : r.status}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 self-start sm:self-auto">
