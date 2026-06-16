@@ -38,16 +38,21 @@ enum AppealStatus {
 }
 
 model User {
-  id              String           @id @default(uuid())
-  email           String           @unique
-  password        String
-  role            Role             @default(USER)
-  reporterScore   Int              @default(0)
-  reports         Report[]
-  watchlist       Watchlist[]
-  notifications   Notification[]
-  reporterProfile ReporterProfile?
-  createdAt       DateTime         @default(now())
+  id                     String           @id @default(uuid())
+  email                  String           @unique
+  password               String
+  role                   Role             @default(USER)
+  reporterScore          Int              @default(0)
+  isEmailVerified        Boolean          @default(false)
+  emailVerificationToken String?
+  passwordResetToken     String?
+  passwordResetExpires   DateTime?
+  reports                Report[]
+  watchlist              Watchlist[]
+  notifications          Notification[]
+  reporterProfile        ReporterProfile?
+  refreshTokens          RefreshToken[]
+  createdAt              DateTime         @default(now())
 }
 
 model ReporterProfile {
@@ -93,6 +98,8 @@ model Report {
   user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   phoneNumber   PhoneNumber  @relation(fields: [numberId], references: [id], onDelete: Cascade)
   evidence      Evidence[]
+  aiCategory    String?
+  aiConfidence  Float?
   createdAt     DateTime     @default(now())
 
   @@index([userId])
@@ -158,6 +165,18 @@ model Notification {
   type      String   // e.g., "REPORT", "APPEAL", "MODERATION", "WATCHLIST_UPDATE"
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
 
   @@index([userId])
 }

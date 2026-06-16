@@ -79,6 +79,9 @@ export async function createReport(req: AuthenticatedRequest, res: Response) {
     }
 
     // 2. Create the Report link
+    const { classifyScamText } = await import("../services/aiClassifier.js");
+    const aiResult = classifyScamText(description || null);
+
     const report = await prisma.report.create({
       data: {
         description,
@@ -90,6 +93,8 @@ export async function createReport(req: AuthenticatedRequest, res: Response) {
         commune,
         village,
         status: ReportStatus.PENDING,
+        aiCategory: aiResult.category,
+        aiConfidence: aiResult.confidence,
       },
     });
 

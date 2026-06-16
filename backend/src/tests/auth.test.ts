@@ -150,6 +150,14 @@ describe("Auth Endpoints", () => {
         role: "USER",
       } as any);
 
+      prismaMock.refreshToken.findUnique.mockResolvedValue({
+        id: "mock-token-id",
+        token: validRefreshToken,
+        userId: "mock-user-id",
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        revoked: false,
+      } as any);
+
       const response = await request(app)
         .post("/api/auth/refresh")
         .send({ refreshToken: validRefreshToken });
@@ -175,6 +183,84 @@ describe("Auth Endpoints", () => {
 
       expect(response.status).toBe(403);
       expect(response.body.error).toBe("Invalid or expired refresh token");
+    });
+  });
+
+  describe("POST /api/auth/logout", () => {
+    it("should delete the refresh token from DB and log out", async () => {
+      prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 1 } as any);
+
+      const response = await request(app)
+        .post("/api/auth/logout")
+        .send({ refreshToken: "mock-refresh-token" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe("Logged out successfully");
+      expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalled();
+    });
+  });
+
+  describe("POST /api/auth/verify-email", () => {
+    it("should successfully verify email when valid token is supplied", async () => {
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: "mock-user-id",
+        email: "test@example.com",
+        isEmailVerified: false,
+      } as any);
+
+      prismaMock.user.update.mockResolvedValue({
+        id: "mock-user-id",
+        isEmailVerified: true,
+      } as any);
+
+      const response = await request(app)
+        .post("/api/auth/verify-email")
+        .send({ token: "valid-verify-token" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe("Email verified successfully");
+      expect(prismaMock.user.findFirst).toHaveBeenCalled();
+      expect(prismaMock.user.update).toHaveBeenCalled();
+    });
+  });
+
+  describe("POST /api/auth/forgot-password", () => {
+    it("should set reset token on user record if email is found", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: "mock-user-id",
+        email: "test@example.com",
+      } as any);
+
+      prismaMock.user.update.mockResolvedValue({
+        id: "mock-user-id",
+      } as any);
+
+      const response = await request(app)
+        .post("/api/auth/forgot-password")
+        .send({ email: "test@example.com" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toContain("reset instructions have been sent");
+    });
+  });
+
+  describe("POST /api/auth/reset-password", () => {
+    it("should update password if valid token is supplied", async () => {
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: "mock-user-id",
+        email: "test@example.com",
+      } as any);
+
+      prismaMock.user.update.mockResolvedValue({
+        id: "mock-user-id",
+      } as any);
+
+      const response = await request(app)
+        .post("/api/auth/reset-password")
+        .send({ token: "valid-reset-token", newPassword: "newsecurepassword123" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe("Password reset successfully");
     });
   });
 });

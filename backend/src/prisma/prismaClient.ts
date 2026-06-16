@@ -62,9 +62,16 @@ export const prismaMock = {
     findMany: (() => {}) as any,
     count: (() => {}) as any,
   },
+  refreshToken: {
+    findUnique: (() => {}) as any,
+    create: (() => {}) as any,
+    update: (() => {}) as any,
+    deleteMany: (() => {}) as any,
+    updateMany: (() => {}) as any,
+  },
 };
 
-const globalForPrisma = global as unknown as { prisma: any };
+const globalForPrisma = globalThis as unknown as { prisma: any };
 
 export const prisma =
   process.env.NODE_ENV === "test"

@@ -100,4 +100,29 @@ export function getRedisClient(): RedisClientType | null {
   return redisClient;
 }
 
+/**
+ * Increment search count for a phone number (popular searches tracking)
+ */
+export async function trackSearch(number: string): Promise<void> {
+  if (!isCacheAvailable() || !redisClient) return;
+  try {
+    await redisClient.zIncrBy("popular_searches", 1, number);
+  } catch (err: any) {
+    logger.warn(`Redis trackSearch failed: ${err.message}`);
+  }
+}
+
+/**
+ * Get popular searches
+ */
+export async function getPopularSearches(limit = 5): Promise<string[]> {
+  if (!isCacheAvailable() || !redisClient) return [];
+  try {
+    return await redisClient.zRange("popular_searches", 0, limit - 1, { REV: true });
+  } catch (err: any) {
+    logger.warn(`Redis getPopularSearches failed: ${err.message}`);
+    return [];
+  }
+}
+
 export default redisClient;

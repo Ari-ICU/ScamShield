@@ -32,12 +32,24 @@ interface RiskNumber {
   totalReport: number;
 }
 
+interface ProvinceStat {
+  province: string;
+  count: number;
+}
+
+interface CountryStatItem {
+  countryCode: string;
+  count: number;
+}
+
 interface DashboardStats {
   totalScamNumbers: number;
   reportsToday: number;
   activeReporters: number;
   categoryDistribution: CategoryStat[];
   highestRiskNumbers: RiskNumber[];
+  provinceDistribution?: ProvinceStat[];
+  countryDistribution?: CountryStatItem[];
 }
 
 export default function StatisticsPage() {
@@ -79,6 +91,20 @@ export default function StatisticsPage() {
             { number: "+85588333444", riskScore: 80, totalReport: 10 },
             { number: "+85515222333", riskScore: 75, totalReport: 9 },
           ],
+          provinceDistribution: [
+            { province: "Phnom Penh", count: 642 },
+            { province: "Sihanoukville", count: 312 },
+            { province: "Siem Reap", count: 198 },
+            { province: "Battambang", count: 120 },
+            { province: "Kandal", count: 95 },
+          ],
+          countryDistribution: [
+            { countryCode: "855", count: 1145 },
+            { countryCode: "84", count: 182 },
+            { countryCode: "66", count: 95 },
+            { countryCode: "86", count: 42 },
+            { countryCode: "1", count: 18 },
+          ]
         });
         setLoading(false);
       });
@@ -309,6 +335,67 @@ export default function StatisticsPage() {
                       })}
                     </div>
                   )}
+                </div>
+
+                {/* Geographic Analytics Section */}
+                <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
+                  {/* Top Scam Provinces */}
+                  <div className="glass p-6 rounded-2xl border border-slate-800 space-y-4 shadow-lg relative overflow-hidden">
+                    <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-red-500/30 to-transparent" />
+                    <h3 className="font-bold text-base text-white flex items-center gap-2.5">
+                      <LayoutGrid className="h-5 w-5 text-red-500" /> Geographic Threat Hotspots (Provinces)
+                    </h3>
+                    <div className="space-y-3 pt-2">
+                      {stats.provinceDistribution && stats.provinceDistribution.length > 0 ? (
+                        stats.provinceDistribution.slice(0, 5).map((prov, idx) => {
+                          const totalProvReports = stats.provinceDistribution!.reduce((acc, curr) => acc + curr.count, 0);
+                          const pct = totalProvReports > 0 ? Math.round((prov.count / totalProvReports) * 100) : 0;
+                          return (
+                            <div key={idx} className="space-y-1 bg-slate-950/30 p-3 rounded-xl border border-slate-900/50">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-white">{prov.province}</span>
+                                <span className="font-mono text-slate-400 font-semibold">{prov.count} reports ({pct}%)</span>
+                              </div>
+                              <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
+                                <div className="bg-red-500 h-full rounded-full" style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-slate-500 text-center py-6">No geographic details reported yet.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Country Code Distribution */}
+                  <div className="glass p-6 rounded-2xl border border-slate-800 space-y-4 shadow-lg relative overflow-hidden">
+                    <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent" />
+                    <h3 className="font-bold text-base text-white flex items-center gap-2.5">
+                      <Activity className="h-5 w-5 text-cyan-400" /> Global Origin Distribution (Country Codes)
+                    </h3>
+                    <div className="space-y-3 pt-2">
+                      {stats.countryDistribution && stats.countryDistribution.length > 0 ? (
+                        stats.countryDistribution.slice(0, 5).map((cCode, idx) => {
+                          const totalCountryReports = stats.countryDistribution!.reduce((acc, curr) => acc + curr.count, 0);
+                          const pct = totalCountryReports > 0 ? Math.round((cCode.count / totalCountryReports) * 100) : 0;
+                          return (
+                            <div key={idx} className="space-y-1 bg-slate-950/30 p-3 rounded-xl border border-slate-900/50">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-white">+{cCode.countryCode} origin</span>
+                                <span className="font-mono text-slate-400 font-semibold">{cCode.count} numbers ({pct}%)</span>
+                              </div>
+                              <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
+                                <div className="bg-cyan-500 h-full rounded-full" style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-slate-500 text-center py-6">No country origins registered yet.</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Table of Top Flagged Numbers (Cyan/Red Security Theme) */}

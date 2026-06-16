@@ -94,14 +94,19 @@ export async function getStats(req: Request, res: Response) {
       },
     });
 
-    return res.json({
+    const result = {
       totalScamNumbers,
       reportsToday,
       categoryDistribution,
       countryDistribution,
       provinceDistribution,
       highestRiskNumbers,
-    });
+    };
+
+    const { setCache } = await import("../utils/redis.js");
+    await setCache("cache:dashboard:stats", JSON.stringify(result), 3600); // cache for 1 hour
+
+    return res.json(result);
   } catch (err: any) {
     logger.error(`Error loading dashboard statistics: ${err.message}`);
     return res.status(500).json({ error: "Internal server error" });

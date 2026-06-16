@@ -46,9 +46,14 @@ function callsSecretGuard(req: Request, res: Response, next: NextFunction) {
 router.post("/auth/register", authLimiter, authController.register);
 router.post("/auth/login", authLimiter, authController.login);
 router.post("/auth/refresh", authLimiter, authController.refresh);
+router.post("/auth/logout", authController.logout);
+router.post("/auth/verify-email", authController.verifyEmail);
+router.post("/auth/forgot-password", authController.forgotPassword);
+router.post("/auth/reset-password", authController.resetPassword);
 
 // Phone Number Search Lookup
 router.get("/numbers/search/:phone", numberController.searchNumber);
+router.get("/numbers/popular", numberController.getPopularSearches);
 router.get("/calls/lookup/:phone", numberController.lookupNumber); // Android Caller ID lookup
 router.post("/calls/detect", callsSecretGuard, numberController.detectCall);
 router.post("/calls/twilio", numberController.detectTwilioCall);

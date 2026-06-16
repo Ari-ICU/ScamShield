@@ -29,6 +29,8 @@ jest.mock('../utils/redis.js', () => ({
   delCache: (jest.fn() as any).mockResolvedValue(undefined),
   isCacheAvailable: (jest.fn() as any).mockReturnValue(true),
   getRedisClient: (jest.fn() as any).mockReturnValue(null),
+  trackSearch: (jest.fn() as any).mockResolvedValue(undefined),
+  getPopularSearches: (jest.fn() as any).mockResolvedValue([]),
 }));
 
 // Mock socket broadcasting functions to prevent socket connection errors

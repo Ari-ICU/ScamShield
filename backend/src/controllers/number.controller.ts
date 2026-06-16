@@ -165,7 +165,9 @@ export async function searchNumber(req: Request, res: Response) {
 
   try {
     // 1. Try cache
-    const { getCache, setCache } = await import("../utils/redis.js");
+    const { getCache, setCache, trackSearch } = await import("../utils/redis.js");
+    await trackSearch(cleanNumber);
+    
     const cacheKey = `cache:number:${cleanNumber}`;
     const cached = await getCache(cacheKey);
     if (cached) {
@@ -776,6 +778,17 @@ export async function updateActiveCallLocation(req: Request, res: Response) {
 
   logger.info(`Active call location updated: ${currentActiveCall.number} to (${lat}, ${lng})`);
   return res.json({ message: "Location updated successfully", data: currentActiveCall });
+}
+
+export async function getPopularSearches(req: Request, res: Response) {
+  try {
+    const { getPopularSearches: getPopular } = await import("../utils/redis.js");
+    const popular = await getPopular(5);
+    return res.json(popular);
+  } catch (err: any) {
+    logger.error(`Error fetching popular searches: ${err.message}`);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 }
 
 
