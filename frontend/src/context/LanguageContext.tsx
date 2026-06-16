@@ -141,6 +141,15 @@ const translations: Translations = {
   locationPlaceholderChamkarMon: { en: "e.g. Chamkar Mon", kh: "ឧ. ចំការមន" },
   locationPlaceholderTonleBassac: { en: "e.g. Tonle Bassac", kh: "ឧ. ទន្លេបាសាក់" },
   locationPlaceholderPhum1: { en: "e.g. Phum 1", kh: "ឧ. ភូមិ ១" },
+  operatorLabel: { en: "Detected Carrier", kh: "ប្រព័ន្ធសេវាទូរស័ព្ទ" },
+  locationGroupTitle: { en: "Occurrence Location (Optional)", kh: "ទីតាំងកើតហេតុ (មិនបង្ខំ)" },
+  howToReportTitle: { en: "Reporting Guidelines", kh: "លក្ខខណ្ឌណែនាំក្នុងការរាយការណ៍" },
+  howToReport1: { en: "Ensure the phone number is typed correctly to prevent false flags.", kh: "សូមប្រាកដថាលេខទូរស័ព្ទត្រូវបានវាយបញ្ចូលត្រឹមត្រូវ ដើម្បីការពារការរាយការណ៍ខុស។" },
+  howToReport2: { en: "Provide specific details like names, spoofed banks, or reward claims.", kh: "សូមផ្តល់ព័ត៌មានលម្អិតជាក់លាក់ ដូចជាឈ្មោះ ធនាគារដែលគេបន្លំ ឬរង្វាន់ដែលគេសន្យា។" },
+  howToReport3: { en: "All submissions are processed in real-time to alert the community.", kh: "រាល់ការដាក់ស្នើនឹងត្រូវដំណើរការភ្លាមៗដើម្បីព្រមានដល់សហគមន៍ទាំងមូល។" },
+  liveStatsSummary: { en: "ScamShield Registry Metrics", kh: "ស្ថិតិនៃបញ្ជីទិន្នន័យ ScamShield" },
+  activeProtections: { en: "Active Community Shield", kh: "ខែលការពារសហគមន៍សកម្ម" },
+  unknownCarrier: { en: "Unknown Operator", kh: "មិនស្គាល់ប្រព័ន្ធសេវា" },
 
   // Community / Live feed
   liveTelemetryTitle: { en: "Live Telemetry Feed", kh: "កំណត់ត្រារបាយការណ៍ផ្សាយផ្ទាល់" },

@@ -20,7 +20,6 @@ import {
 export default function MobilePairPage() {
   const { language } = useLanguage();
   const [mounted, setMounted] = useState(false);
-  const [localIp, setLocalIp] = useState("localhost");
   const [submitting, setSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"IDLE" | "SUCCESS" | "ERROR">("IDLE");
   const [testNumber, setTestNumber] = useState("0969551630");
@@ -38,46 +37,75 @@ export default function MobilePairPage() {
     pairingTokenRef.current = pairingToken;
   }, [pairingToken]);
 
+  const localIp = typeof window !== "undefined" ? window.location.hostname : "localhost";
+
   useEffect(() => {
-    setMounted(true);
+    setTimeout(() => {
+      setMounted(true);
+    }, 0);
     if (typeof window !== "undefined") {
-      // Parse URL params for active call details
       const params = new URLSearchParams(window.location.search);
       const numParam = params.get("number");
       const tokenParam = params.get("token");
       if (tokenParam) {
-        setPairingToken(tokenParam);
+        setTimeout(() => {
+          setPairingToken(tokenParam);
+        }, 0);
       }
       if (numParam) {
-        setActiveNumber(numParam);
-        setActiveCategory(params.get("category") || "OTHER");
-        setActiveRiskScore(Number(params.get("riskScore") || "0"));
-      } else {
-        // Fallback: check active call from backend
-        const hostname = window.location.hostname;
-        const backendPort = 4000;
-        const backendBase = `http://${hostname}:${backendPort}/api`;
-        fetch(`${backendBase}/calls/active`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.activeCall) {
-              setActiveNumber(data.activeCall.number);
-              setActiveCategory(data.activeCall.category);
-              setActiveRiskScore(data.activeCall.riskScore);
-              if (data.activeCall.pairingToken) {
-                setPairingToken(data.activeCall.pairingToken);
-              }
-            }
-          })
-          .catch(() => {});
+        setTimeout(() => {
+          setActiveNumber(numParam);
+          setActiveCategory(params.get("category") || "OTHER");
+          setActiveRiskScore(Number(params.get("riskScore") || "0"));
+        }, 0);
       }
-      // Set the local IP from the current hostname immediately (no fetch needed on mobile)
-      setLocalIp(window.location.hostname);
     }
   }, []);
 
+  // 1. Poll active call status from backend continuously (detect start and hangup)
   useEffect(() => {
-    if (!activeNumber) return;
+    if (!mounted) return;
+
+    const checkActiveCall = () => {
+      fetch(`${API_BASE}/calls/active`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.activeCall) {
+            const ac = data.activeCall;
+            setActiveNumber(ac.number);
+            setActiveCategory(ac.category);
+            setActiveRiskScore(ac.riskScore);
+            if (ac.pairingToken) {
+              setPairingToken(ac.pairingToken);
+            }
+          } else {
+            // Only clear states if we don't have active parameters in url that haven't been cleared
+            setActiveNumber(null);
+            setActiveCategory(null);
+            setActiveRiskScore(null);
+            setPairingToken(null);
+          }
+        })
+        .catch(() => {});
+    };
+
+    // Run immediately
+    checkActiveCall();
+
+    const statusInterval = setInterval(checkActiveCall, 3000);
+
+    return () => clearInterval(statusInterval);
+  }, [mounted]);
+
+  // 2. Geolocation Watcher effect (only active when paired call is locked)
+  useEffect(() => {
+    if (!activeNumber || !pairingToken) {
+      setTimeout(() => {
+        setGpsStatus("idle");
+        setGpsCoords(null);
+      }, 0);
+      return;
+    }
 
     const sendLocationUpdate = (lat: number, lng: number) => {
       fetch(`${API_BASE}/calls/active/location`, {
@@ -90,8 +118,9 @@ export default function MobilePairPage() {
     let watchId: number | null = null;
 
     if (typeof window !== "undefined" && navigator.geolocation) {
-      setGpsStatus("idle");
-      // watchPosition gives continuous real-time GPS updates — much better than polling getCurrentPosition
+      setTimeout(() => {
+        setGpsStatus("idle");
+      }, 0);
       watchId = navigator.geolocation.watchPosition(
         (pos) => {
           setGpsStatus("active");
@@ -104,36 +133,20 @@ export default function MobilePairPage() {
         },
         {
           enableHighAccuracy: true,
-          timeout: 30000,   // 30s — mobile GPS cold start can take up to 30s
-          maximumAge: 0,    // Always get fresh coordinates, never cached
+          timeout: 30000,
+          maximumAge: 0,
         }
       );
     } else {
-      setGpsStatus("error");
+      setTimeout(() => {
+        setGpsStatus("error");
+      }, 0);
     }
-
-    // Poll active call status every 5s to detect hangup
-    const statusInterval = setInterval(() => {
-      fetch(`${API_BASE}/calls/active`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (!data.activeCall) {
-            setActiveNumber(null);
-            setActiveCategory(null);
-            setActiveRiskScore(null);
-            setPairingToken(null);
-          } else if (data.activeCall.pairingToken) {
-            setPairingToken(data.activeCall.pairingToken);
-          }
-        })
-        .catch(() => {});
-    }, 5000);
 
     return () => {
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-      clearInterval(statusInterval);
     };
-  }, [activeNumber]);
+  }, [activeNumber, pairingToken]);
 
   const webhookUrl = `${SOCKET_URL.replace("/api", "")}/api/calls/detect`;
 
