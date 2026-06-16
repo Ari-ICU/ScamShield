@@ -161,16 +161,36 @@ export async function searchNumber(req: Request, res: Response) {
     return res.status(400).json({ error: "Phone number parameter is required" });
   }
 
-  // Sanitize
   const cleanNumber = phone.trim().replace(/\s+/g, "");
 
   try {
+    // 1. Try cache
+    const { getCache, setCache } = await import("../utils/redis.js");
+    const cacheKey = `cache:number:${cleanNumber}`;
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      logger.info(`⚡ Cache hit for search: ${cleanNumber}`);
+      return res.json(JSON.parse(cached));
+    }
+
+    // 2. Query DB
     const dbNum = await prisma.phoneNumber.findUnique({
       where: { number: cleanNumber },
       include: {
         reports: {
+          where: {
+            status: { not: "REJECTED" }
+          },
           orderBy: { createdAt: "desc" },
-          take: 10,
+          include: {
+            evidence: true,
+            user: {
+              select: {
+                role: true,
+                reporterScore: true
+              }
+            }
+          }
         },
       },
     });
@@ -179,7 +199,7 @@ export async function searchNumber(req: Request, res: Response) {
 
     if (!dbNum) {
       // Return safe schema for unregistered numbers without writing to DB yet
-      return res.json({
+      const safePayload = {
         number: cleanNumber,
         country: analysis.country,
         countryCode: analysis.code,
@@ -190,8 +210,40 @@ export async function searchNumber(req: Request, res: Response) {
         totalReports: 0,
         reports: [],
         recentReportsCount: 0,
+        commonScamType: "NONE",
+        evidenceCounts: { screenshots: 0, audio: 0, documents: 0 },
+        lastReportedText: "Never",
+        historyTimeline: [],
         createdAt: new Date(),
+      };
+      await setCache(cacheKey, JSON.stringify(safePayload), 300); // 5 min cache
+      return res.json(safePayload);
+    }
+
+    // 3. Recalculate Detailed Risk Score dynamically
+    const { calculateDetailedRiskScore } = await import("../services/riskEngine.js");
+    
+    const reportInputs = dbNum.reports.map((r) => ({
+      createdAt: r.createdAt,
+      status: r.status,
+      evidenceCount: r.evidence.length,
+      reporterRole: r.user.role,
+      reporterScore: r.user.reporterScore,
+      category: r.category,
+    }));
+
+    const dynamicRiskScore = calculateDetailedRiskScore({
+      reports: reportInputs,
+      countryCode: dbNum.countryCode || undefined,
+    });
+
+    // Update if it doesn't match dbNum.riskScore
+    if (dynamicRiskScore !== dbNum.riskScore) {
+      await prisma.phoneNumber.update({
+        where: { id: dbNum.id },
+        data: { riskScore: dynamicRiskScore },
       });
+      dbNum.riskScore = dynamicRiskScore;
     }
 
     // Determine risk level label based on riskScore
@@ -213,9 +265,86 @@ export async function searchNumber(req: Request, res: Response) {
       },
     });
 
-    logger.info(`Looked up number: ${cleanNumber} (Score: ${dbNum.riskScore}, Level: ${riskLevel})`);
+    // 4. Extract Common Scam Category
+    const categoryCounts: Record<string, number> = {};
+    dbNum.reports.forEach((r) => {
+      categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1;
+    });
 
-    return res.json({
+    let commonScamType = "NONE";
+    let maxCatCount = 0;
+    for (const cat in categoryCounts) {
+      if (categoryCounts[cat] > maxCatCount) {
+        maxCatCount = categoryCounts[cat];
+        commonScamType = cat;
+      }
+    }
+
+    // 5. Extract Evidence File Counts
+    let screenshots = 0;
+    let audio = 0;
+    let documents = 0;
+
+    dbNum.reports.forEach((r) => {
+      r.evidence.forEach((ev) => {
+        const type = ev.fileType.toLowerCase();
+        if (type.includes("image") || type.includes("png") || type.includes("jpeg")) {
+          screenshots++;
+        } else if (type.includes("audio") || type.includes("mp3") || type.includes("wav") || type.includes("ogg")) {
+          audio++;
+        } else {
+          documents++;
+        }
+      });
+    });
+
+    // 6. Format Last Reported Time
+    let lastReportedText = "Never";
+    if (dbNum.reports.length > 0) {
+      const lastReportDate = dbNum.reports[0].createdAt;
+      const hoursDiff = Math.max(0, (Date.now() - new Date(lastReportDate).getTime()) / (1000 * 60 * 60));
+      if (hoursDiff < 1) {
+        lastReportedText = "Just now";
+      } else if (hoursDiff < 24) {
+        lastReportedText = `${Math.round(hoursDiff)} hours ago`;
+      } else {
+        lastReportedText = `${Math.round(hoursDiff / 24)} days ago`;
+      }
+    }
+
+    // 7. Calculate Historical Risk Score Timeline (Past 6 Months)
+    const historyTimeline: { month: string; riskScore: number }[] = [];
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const now = new Date();
+
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59);
+
+      // Filter reports created before or on the end of this month
+      const reportsBefore = dbNum.reports.filter((r) => new Date(r.createdAt) <= endOfMonth);
+
+      const inputs = reportsBefore.map((r) => ({
+        createdAt: r.createdAt,
+        status: r.status,
+        evidenceCount: r.evidence.length,
+        reporterRole: r.user.role,
+        reporterScore: r.user.reporterScore,
+        category: r.category,
+      }));
+
+      const scoreAtMonth = calculateDetailedRiskScore({
+        reports: inputs,
+        countryCode: dbNum.countryCode || undefined,
+      });
+
+      historyTimeline.push({
+        month: `${monthNames[endOfMonth.getMonth()]}`,
+        riskScore: scoreAtMonth,
+      });
+    }
+
+    const payload = {
       id: dbNum.id,
       number: dbNum.number,
       country: analysis.country,
@@ -225,12 +354,137 @@ export async function searchNumber(req: Request, res: Response) {
       riskScore: dbNum.riskScore,
       riskLevel,
       totalReports: dbNum.totalReport,
-      reports: dbNum.reports,
+      reports: dbNum.reports.map((r) => ({
+        id: r.id,
+        category: r.category,
+        description: r.description,
+        userId: r.userId,
+        status: r.status,
+        createdAt: r.createdAt,
+        evidenceCount: r.evidence.length,
+      })),
       recentReportsCount,
+      commonScamType,
+      evidenceCounts: { screenshots, audio, documents },
+      lastReportedText,
+      historyTimeline,
       createdAt: dbNum.createdAt,
-    });
+    };
+
+    // Cache the response
+    await setCache(cacheKey, JSON.stringify(payload), 300); // 5 min cache
+
+    logger.info(`Looked up number: ${cleanNumber} (Score: ${dbNum.riskScore}, Level: ${riskLevel})`);
+
+    return res.json(payload);
   } catch (err: any) {
     logger.error(`Error searching number ${cleanNumber}: ${err.message}`);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+export async function lookupNumber(req: Request, res: Response) {
+  const { phone } = req.params;
+  if (!phone) {
+    return res.status(400).json({ error: "Phone number parameter is required" });
+  }
+
+  const cleanNumber = phone.trim().replace(/\s+/g, "");
+
+  try {
+    const { getCache, setCache } = await import("../utils/redis.js");
+    const cacheKey = `cache:lookup:${cleanNumber}`;
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      logger.info(`⚡ Cache hit for Caller ID lookup: ${cleanNumber}`);
+      return res.json(JSON.parse(cached));
+    }
+
+    const dbNum = await prisma.phoneNumber.findUnique({
+      where: { number: cleanNumber },
+      include: {
+        reports: {
+          where: { status: { not: "REJECTED" } },
+          include: {
+            user: { select: { role: true, reporterScore: true } },
+            evidence: true,
+          },
+        },
+      },
+    });
+
+    const analysis = analyzeNumber(cleanNumber);
+
+    if (!dbNum || dbNum.reports.length === 0) {
+      const safePayload = {
+        number: cleanNumber,
+        isScam: false,
+        riskScore: 0,
+        riskLevel: "SAFE",
+        scamType: "NONE",
+        totalReports: 0,
+        warningMessage: "Verified secure connection. No active threats found.",
+      };
+      await setCache(cacheKey, JSON.stringify(safePayload), 600); // 10 minutes cache
+      return res.json(safePayload);
+    }
+
+    // Calculate detailed risk score
+    const { calculateDetailedRiskScore } = await import("../services/riskEngine.js");
+    const reportInputs = dbNum.reports.map((r) => ({
+      createdAt: r.createdAt,
+      status: r.status,
+      evidenceCount: r.evidence.length,
+      reporterRole: r.user.role,
+      reporterScore: r.user.reporterScore,
+      category: r.category,
+    }));
+
+    const riskScore = calculateDetailedRiskScore({
+      reports: reportInputs,
+      countryCode: dbNum.countryCode || undefined,
+    });
+
+    let riskLevel = "SAFE";
+    if (riskScore >= 75) {
+      riskLevel = "HIGH_RISK";
+    } else if (riskScore >= 30) {
+      riskLevel = "SUSPICIOUS";
+    }
+
+    // Extract common scam type
+    const categoryCounts: Record<string, number> = {};
+    dbNum.reports.forEach((r) => {
+      categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1;
+    });
+
+    let scamType = "OTHER";
+    let maxCount = 0;
+    for (const cat in categoryCounts) {
+      if (categoryCounts[cat] > maxCount) {
+        maxCount = categoryCounts[cat];
+        scamType = cat;
+      }
+    }
+
+    const payload = {
+      number: cleanNumber,
+      isScam: riskScore >= 30,
+      riskScore,
+      riskLevel,
+      scamType,
+      totalReports: dbNum.reports.length,
+      warningMessage: riskScore >= 75
+        ? `Warning! High risk caller! ScamShield has flagged this number for ${scamType.replace(/_/g, " ")}.`
+        : riskScore >= 30
+        ? `Caution: Suspicious caller. This number has been reported for ${scamType.replace(/_/g, " ")}.`
+        : "Safe connection. Minimal threat detected.",
+    };
+
+    await setCache(cacheKey, JSON.stringify(payload), 600); // 10 min cache
+    return res.json(payload);
+  } catch (err: any) {
+    logger.error(`Error in lookupNumber for ${cleanNumber}: ${err.message}`);
     return res.status(500).json({ error: "Internal server error" });
   }
 }

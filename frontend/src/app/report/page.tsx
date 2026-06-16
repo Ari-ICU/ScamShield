@@ -32,7 +32,11 @@ import {
   CheckCircle2,
   Activity,
   Info,
-  Lock
+  Lock,
+  Upload,
+  X,
+  Image,
+  FileAudio
 } from "lucide-react";
 
 enum ScamType {
@@ -136,6 +140,7 @@ function ReportFormContent() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
 
   // Compute carrier dynamically during render, no useEffect needed
   const carrier = detectCarrier(number);
@@ -174,18 +179,22 @@ function ReportFormContent() {
     }
 
     try {
+      const formData = new FormData();
+      formData.append("number", number.trim());
+      formData.append("category", category);
+      formData.append("description", description.trim());
+      formData.append("province", province.trim());
+      formData.append("district", district.trim());
+      formData.append("commune", commune.trim());
+      formData.append("village", village.trim());
+
+      evidenceFiles.forEach((file) => {
+        formData.append("evidence", file);
+      });
+
       await apiFetch("/reports", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          number: number.trim(),
-          category,
-          description: description.trim(),
-          province: province.trim(),
-          district: district.trim(),
-          commune: commune.trim(),
-          village: village.trim(),
-        }),
+        body: formData,
       });
 
       setSuccess(t("reportSuccess"));
@@ -472,6 +481,84 @@ function ReportFormContent() {
                     className="w-full pl-11 pr-4 py-3 bg-slate-955 border border-slate-800 hover:border-slate-700 focus:border-red-500 rounded-xl outline-none text-white transition-all text-sm resize-none focus:ring-1 focus:ring-red-500/20"
                   />
                 </div>
+              </div>
+
+              {/* Evidence Upload */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                  Evidence Files (Screenshots, Audio, SMS)
+                </label>
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer.files) {
+                      const newFiles = Array.from(e.dataTransfer.files);
+                      setEvidenceFiles((prev) => [...prev, ...newFiles]);
+                    }
+                  }}
+                  className="border-2 border-dashed border-slate-800 hover:border-slate-700 bg-slate-950/20 rounded-xl p-6 text-center cursor-pointer transition relative"
+                >
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,audio/*"
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        const newFiles = Array.from(e.target.files);
+                        setEvidenceFiles((prev) => [...prev, ...newFiles]);
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <div className="p-3 bg-slate-900 rounded-full text-slate-400">
+                      <Upload className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white">Drag & drop files here, or click to browse</p>
+                      <p className="text-xs text-slate-500 mt-1">Upload up to 5 files. Allowed: JPG, PNG, WEBP, MP3, WAV, M4A (Max 10MB per file)</p>
+                    </div>
+                  </div>
+                </div>
+                {evidenceFiles.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {evidenceFiles.map((file, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-slate-900/50 border border-slate-850 rounded-xl">
+                        <div className="flex items-center gap-3">
+                          {file.type.startsWith("image/") ? (
+                            <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                              <Image className="h-4 w-4" />
+                            </div>
+                          ) : (
+                            <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
+                              <FileAudio className="h-4 w-4" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-white truncate max-w-[200px] sm:max-w-[400px]">
+                              {file.name}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {(file.size / (1024 * 1024)).toFixed(2)} MB
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setEvidenceFiles((prev) => prev.filter((_, i) => i !== idx))}
+                          className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-red-500 transition cursor-pointer"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <motion.button

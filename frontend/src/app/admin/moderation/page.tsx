@@ -5,6 +5,12 @@ import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { Trash2, Pencil, AlertTriangle, FolderOpen, Calendar, RefreshCw, MapPin } from "lucide-react";
 
+interface Evidence {
+  id: string;
+  fileUrl: string;
+  fileType: string;
+}
+
 interface AdminReport {
   id: string;
   category: string;
@@ -14,6 +20,8 @@ interface AdminReport {
   district: string | null;
   commune: string | null;
   village: string | null;
+  status: string;
+  evidence: Evidence[];
   phoneNumber: {
     number: string;
     riskScore: number;
@@ -48,6 +56,9 @@ export default function ModerationQueue() {
   const [editingReport, setEditingReport] = useState<AdminReport | null>(null);
   const [editCategory, setEditCategory] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editStatus, setEditStatus] = useState("");
+
+  const STATUSES = ["PENDING", "APPROVED", "REJECTED", "UNDER_REVIEW"];
 
   const loadReports = async (pageNumber = page) => {
     setLoading(true);
@@ -86,6 +97,7 @@ export default function ModerationQueue() {
     setEditingReport(report);
     setEditCategory(report.category);
     setEditDescription(report.description || "");
+    setEditStatus(report.status);
   };
 
   const handleUpdateReport = async (e: React.FormEvent) => {
@@ -99,13 +111,14 @@ export default function ModerationQueue() {
         body: JSON.stringify({
           category: editCategory,
           description: editDescription,
+          status: editStatus,
         }),
       });
 
       setReports((prev) =>
         prev.map((r) =>
           r.id === editingReport.id
-            ? { ...r, category: editCategory, description: editDescription }
+            ? { ...r, category: editCategory, description: editDescription, status: editStatus }
             : r
         )
       );
@@ -192,12 +205,23 @@ export default function ModerationQueue() {
               {filteredReports.map((r) => (
                 <div key={r.id} className="glass p-5 rounded-xl border border-slate-800 space-y-3.5 relative overflow-hidden glass-hover font-sans">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-900/60 pb-3">
-                    <div>
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-base font-bold text-white tracking-wide mr-2">
                         {r.phoneNumber.number}
                       </span>
                       <span className="text-[10px] px-2 py-0.5 rounded bg-slate-950 border border-slate-900 text-slate-400 font-mono font-semibold uppercase">
                         {t(r.category) || formatCategory(r.category)}
+                      </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                        r.status === "APPROVED"
+                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+                          : r.status === "REJECTED"
+                          ? "bg-red-500/15 text-red-400 border border-red-500/20"
+                          : r.status === "UNDER_REVIEW"
+                          ? "bg-blue-500/15 text-blue-400 border border-blue-500/20"
+                          : "bg-yellow-500/15 text-yellow-400 border border-yellow-500/20"
+                      }`}>
+                        {r.status}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -216,14 +240,61 @@ export default function ModerationQueue() {
                     </div>
                   </div>
 
-                  <p className="text-sm text-slate-300 leading-relaxed bg-slate-950/20 p-3.5 rounded-xl border border-slate-900/80">
+                  <p className="text-sm text-slate-300 leading-relaxed bg-slate-950/20 p-3.5 rounded-xl border border-slate-900/80 font-medium">
                     {r.description || t("noDescription")}
                   </p>
+
+                  {/* Evidence display section */}
+                  {r.evidence && r.evidence.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                        Submitted Evidence Attachments:
+                      </span>
+                      <div className="flex flex-wrap gap-2.5">
+                        {r.evidence.map((file) => {
+                          const fullUrl = `${apiFetch.toString().includes("API_BASE") ? "http://localhost:4000" : ""}${file.fileUrl}`;
+                          const rawUrl = file.fileUrl.startsWith("http") ? file.fileUrl : `http://localhost:4000${file.fileUrl}`;
+                          
+                          if (file.fileType.startsWith("image/")) {
+                            return (
+                              <a
+                                key={file.id}
+                                href={rawUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="group/thumb relative block shrink-0"
+                              >
+                                <img
+                                  src={rawUrl}
+                                  alt="Evidence"
+                                  className="w-14 h-14 object-cover rounded-lg border border-slate-800 hover:border-slate-700 transition"
+                                />
+                              </a>
+                            );
+                          } else if (file.fileType.startsWith("audio/")) {
+                            return (
+                              <div key={file.id} className="w-full max-w-xs bg-slate-950 p-2.5 rounded-xl border border-slate-900 flex flex-col gap-1">
+                                <span className="text-[10px] text-slate-400 font-semibold truncate">
+                                  Audio Proof
+                                </span>
+                                <audio
+                                  controls
+                                  src={rawUrl}
+                                  className="w-full h-8 text-xs accent-red-500"
+                                />
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Location metadata display */}
                   {(r.province || r.district || r.commune || r.village) && (
                     <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 bg-slate-950/40 p-2 px-3 rounded-lg border border-slate-900/60 w-fit">
-                      <MapPin className="h-3.5 w-3.5 text-red-550" />
+                      <MapPin className="h-3.5 w-3.5 text-red-555" />
                       <span className="font-bold text-slate-300">Location:</span>
                       <span>
                         {[r.village, r.commune, r.district, r.province].filter(Boolean).join(", ")}
@@ -288,6 +359,23 @@ export default function ModerationQueue() {
                   {CATEGORIES.map((cat) => (
                     <option key={cat} value={cat} className="bg-slate-950">
                       {t(cat) || formatCategory(cat)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                  Report Status
+                </label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-850 text-white focus:outline-none focus:border-red-500 transition text-sm cursor-pointer"
+                >
+                  {STATUSES.map((status) => (
+                    <option key={status} value={status} className="bg-slate-955">
+                      {status}
                     </option>
                   ))}
                 </select>

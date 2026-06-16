@@ -16,20 +16,71 @@ import {
   AlertTriangle,
   ShieldCheck,
   Globe,
-  PhoneCall
+  PhoneCall,
+  Eye,
+  Bell
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { io } from "socket.io-client";
+import { SOCKET_URL } from "@/lib/api";
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const { user, logout, apiFetch } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setNotifications([]);
+      return;
+    }
+
+    apiFetch("/notifications")
+      .then((data) => setNotifications(data))
+      .catch(() => {});
+
+    const socket = io(SOCKET_URL);
+    socket.emit("join_user", user.id);
+
+    socket.on("notification", (notif) => {
+      setNotifications((prev) => [notif, ...prev]);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [user]);
+
+  const handleMarkAllRead = async () => {
+    try {
+      await apiFetch("/notifications/read-all", { method: "PATCH" });
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleMarkOneRead = async (id: string) => {
+    try {
+      await apiFetch(`/notifications/${id}/read`, { method: "PATCH" });
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const navLinks = [
     { href: "/search", label: t("lookup"), icon: Search },
     { href: "/report", label: t("reportScam"), icon: AlertTriangle },
+    { href: "/watchlist", label: language === "kh" ? "បញ្ជីតាមដាន" : "Watchlist", icon: Eye },
     { href: "/statistics", label: t("statistics"), icon: BarChart3 },
     { href: "/community", label: t("liveReports"), icon: Users },
     { href: "/call-tracker", label: t("callTracker") || "Call Tracker", icon: PhoneCall },
@@ -110,6 +161,88 @@ export default function Navbar() {
     );
   };
 
+  const renderNotifications = () => {
+    if (!user) return null;
+    return (
+      <div className="relative">
+        <button
+          onClick={() => setNotifOpen(!notifOpen)}
+          className="relative p-2 px-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition cursor-pointer select-none"
+        >
+          <Bell className="h-4 w-4" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+              {unreadCount}
+            </span>
+          )}
+        </button>
+
+        {notifOpen && (
+          <>
+            <div className="fixed inset-0 z-40 cursor-default" onClick={() => setNotifOpen(false)} />
+            <div className="absolute right-0 mt-2 w-80 glass border border-slate-800 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-96 overflow-y-auto">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-900 mb-2">
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                  {language === "en" ? "Notifications" : "សារជូនដំណឹង"}
+                </h3>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    className="text-[10px] font-semibold text-red-405 hover:text-red-300 cursor-pointer"
+                  >
+                    {language === "en" ? "Mark all read" : "អានទាំងអស់"}
+                  </button>
+                )}
+              </div>
+
+              {notifications.length === 0 ? (
+                <div className="text-center py-6 text-slate-500 text-xs italic">
+                  {language === "en" ? "No notifications yet." : "មិនទាន់មានសារជូនដំណឹងទេ។"}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => handleMarkOneRead(n.id)}
+                      className={`p-2.5 rounded-xl text-xs transition cursor-pointer flex gap-2.5 items-start ${
+                        n.read
+                          ? "bg-slate-900/40 text-slate-405 hover:bg-slate-900/60"
+                          : "bg-red-500/10 text-slate-200 border border-red-500/10 hover:bg-red-550/15"
+                      }`}
+                    >
+                      <div className="mt-0.5 shrink-0">
+                        {n.type === "WATCHLIST_UPDATE" ? (
+                          <ShieldAlert className="h-4 w-4 text-red-500" />
+                        ) : n.type === "APPEAL" ? (
+                          <PhoneCall className="h-4 w-4 text-yellow-500" />
+                        ) : (
+                          <Users className="h-4 w-4 text-orange-500" />
+                        )}
+                      </div>
+                      <div className="flex-grow min-w-0">
+                        <p className="font-semibold truncate text-[11px]">{n.title}</p>
+                        <p className="mt-0.5 leading-relaxed text-slate-405 text-[10px]">
+                          {n.message}
+                        </p>
+                        <p className="mt-1 text-[9px] text-slate-550">
+                          {new Date(n.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      {!n.read && (
+                        <div className="h-1.5 w-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <nav className="sticky top-0 z-50 glass border-b border-slate-800 bg-slate-950/95">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -151,6 +284,8 @@ export default function Navbar() {
           {/* Desktop Auth & Lang */}
           <div className="hidden md:flex items-center gap-3 shrink-0">
             {renderLanguageSwitcher()}
+
+            {renderNotifications()}
 
             {user ? (
               renderProfileDropdown()

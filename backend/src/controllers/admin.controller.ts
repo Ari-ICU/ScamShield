@@ -1,10 +1,30 @@
 import { Request, Response } from "express";
+
+
 import prisma from "../prisma/prismaClient.js";
 import { calculateRiskScore } from "../services/riskEngine.js";
 import logger from "../utils/logger.js";
+import { logAdminAction } from "../utils/auditLogger.js";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { ReportStatus, Role } from "@prisma/client";
+import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
+
+// Helper function to recalculate risk scores using detailed risk engine
+async function recalculateRiskAndTotal(numberId: string) {
+  const { recalculatePhoneNumberRisk } = await import("../jobs/worker.js");
+  await recalculatePhoneNumberRisk(numberId);
+}
 
 export async function getStats(req: Request, res: Response) {
   try {
+    // Try to load cached stats
+    const { getCache } = await import("../utils/redis.js");
+    const cached = await getCache("cache:dashboard:stats");
+    if (cached) {
+      logger.info("⚡ Cache hit for dashboard statistics");
+      return res.json(JSON.parse(cached));
+    }
+
     const totalScamNumbers = await prisma.phoneNumber.count({
       where: { riskScore: { gte: 30 } },
     });
@@ -102,6 +122,7 @@ export async function getReports(req: Request, res: Response) {
         include: {
           phoneNumber: { select: { number: true, riskScore: true } },
           user: { select: { email: true } },
+          evidence: true,
         },
       }),
       prisma.report.count(),
@@ -113,12 +134,20 @@ export async function getReports(req: Request, res: Response) {
   }
 }
 
-export async function updateReport(req: Request, res: Response) {
+export async function updateReport(req: AuthenticatedRequest, res: Response) {
   const { id } = req.params;
-  const { description, category } = req.body;
+  const { description, category, status } = req.body;
+  const adminId = req.user?.id;
+
+  if (!adminId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
   try {
-    const report = await prisma.report.findUnique({ where: { id } });
+    const report = await prisma.report.findUnique({
+      where: { id },
+      include: { phoneNumber: true }
+    });
     if (!report) {
       return res.status(404).json({ error: "Report not found" });
     }
@@ -128,7 +157,62 @@ export async function updateReport(req: Request, res: Response) {
       data: {
         description: description !== undefined ? description : report.description,
         category: category || report.category,
+        status: status || report.status,
       },
+    });
+
+    // If status changed or report was updated, recalculate the risk score
+    if (status && status !== report.status) {
+      await recalculateRiskAndTotal(report.numberId);
+
+      // Adjust reporter reputation score
+      const reporterId = report.userId;
+      let pointsDiff = 0;
+      if (report.status === "PENDING" && status === "APPROVED") pointsDiff = 10;
+      else if (report.status === "PENDING" && status === "REJECTED") pointsDiff = -5;
+      else if (report.status === "APPROVED" && status === "REJECTED") pointsDiff = -15;
+      else if (report.status === "REJECTED" && status === "APPROVED") pointsDiff = 15;
+      else if (report.status === "APPROVED" && (status === "PENDING" || status === "UNDER_REVIEW")) pointsDiff = -10;
+      else if (report.status === "REJECTED" && (status === "PENDING" || status === "UNDER_REVIEW")) pointsDiff = 5;
+      else if ((report.status === "PENDING" || report.status === "UNDER_REVIEW") && status === "APPROVED") pointsDiff = 10;
+      else if ((report.status === "PENDING" || report.status === "UNDER_REVIEW") && status === "REJECTED") pointsDiff = -5;
+
+      if (pointsDiff !== 0) {
+        const user = await prisma.user.findUnique({ where: { id: reporterId } });
+        if (user) {
+          const newScore = Math.max(0, user.reporterScore + pointsDiff);
+          await prisma.user.update({
+            where: { id: reporterId },
+            data: { reporterScore: newScore },
+          });
+        }
+      }
+
+      // Create in-app notification for reporter
+      const { sendInAppNotification } = await import("../socket/socket.js");
+      const statusLabels: Record<string, string> = {
+        APPROVED: "Approved",
+        REJECTED: "Rejected",
+        UNDER_REVIEW: "placed Under Review",
+        PENDING: "set back to Pending"
+      };
+      const label = statusLabels[status] || status;
+
+      const notification = await prisma.notification.create({
+        data: {
+          userId: reporterId,
+          title: "Report Status Updated",
+          message: `Your report for number ${report.phoneNumber?.number || "scam line"} has been ${label} by a moderator.`,
+          type: "MODERATION",
+        },
+      });
+      sendInAppNotification(reporterId, notification);
+    }
+
+    // Log admin action
+    await logAdminAction(adminId, "UPDATE_REPORT", "Report", id, {
+      previous: { description: report.description, category: report.category, status: report.status },
+      updated: { description: updated.description, category: updated.category, status: updated.status },
     });
 
     logger.info(`Admin updated report ID: ${id}`);
@@ -139,11 +223,19 @@ export async function updateReport(req: Request, res: Response) {
   }
 }
 
-export async function deleteReport(req: Request, res: Response) {
+export async function deleteReport(req: AuthenticatedRequest, res: Response) {
   const { id } = req.params;
+  const adminId = req.user?.id;
+
+  if (!adminId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
   try {
-    const report = await prisma.report.findUnique({ where: { id } });
+    const report = await prisma.report.findUnique({
+      where: { id },
+      include: { phoneNumber: true },
+    });
     if (!report) {
       return res.status(404).json({ error: "Report not found" });
     }
@@ -151,39 +243,14 @@ export async function deleteReport(req: Request, res: Response) {
     await prisma.report.delete({ where: { id } });
 
     // Recalculate risk score for the corresponding PhoneNumber
-    const numberId = report.numberId;
-    const phoneNumber = await prisma.phoneNumber.findUnique({ where: { id: numberId } });
+    await recalculateRiskAndTotal(report.numberId);
 
-    if (phoneNumber) {
-      const totalReportsCount = await prisma.report.count({ where: { numberId } });
-
-      const uniqueUsersAgg = await prisma.report.groupBy({
-        by: ["userId"],
-        where: { numberId },
-      });
-      const uniqueUsersCount = uniqueUsersAgg.length;
-
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentReportsCount = await prisma.report.count({
-        where: { numberId, createdAt: { gte: thirtyDaysAgo } },
-      });
-
-      const newRiskScore = calculateRiskScore({
-        totalReports: totalReportsCount,
-        countryCode: phoneNumber.countryCode || undefined,
-        uniqueUsers: uniqueUsersCount,
-        recentReports: recentReportsCount,
-      });
-
-      await prisma.phoneNumber.update({
-        where: { id: numberId },
-        data: {
-          riskScore: newRiskScore,
-          totalReport: totalReportsCount,
-        },
-      });
-    }
+    // Log admin action
+    await logAdminAction(adminId, "DELETE_REPORT", "Report", id, {
+      number: report.phoneNumber.number,
+      description: report.description,
+      category: report.category,
+    });
 
     logger.info(`Admin deleted report ID: ${id}`);
     return res.json({ message: "Report deleted successfully" });
@@ -218,9 +285,14 @@ export async function getUsers(req: Request, res: Response) {
   }
 }
 
-export async function updateUserRole(req: Request, res: Response) {
+export async function updateUserRole(req: AuthenticatedRequest, res: Response) {
   const { id } = req.params;
   const { role } = req.body;
+  const adminId = req.user?.id;
+
+  if (!adminId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
   if (role !== "USER" && role !== "ADMIN") {
     return res.status(400).json({ error: "Invalid role value. Must be USER or ADMIN." });
@@ -232,7 +304,7 @@ export async function updateUserRole(req: Request, res: Response) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    if ((req as any).user?.id === id && role === "USER") {
+    if (adminId === id && role === "USER") {
       return res.status(400).json({ error: "Admins cannot demote themselves to USER." });
     }
 
@@ -250,6 +322,13 @@ export async function updateUserRole(req: Request, res: Response) {
       }
     });
 
+    // Log admin action
+    await logAdminAction(adminId, "UPDATE_USER_ROLE", "User", id, {
+      userEmail: targetUser.email,
+      fromRole: targetUser.role,
+      toRole: role,
+    });
+
     logger.info(`Admin updated user ID: ${id} role to ${role}`);
     return res.json(updated);
   } catch (err: any) {
@@ -258,8 +337,13 @@ export async function updateUserRole(req: Request, res: Response) {
   }
 }
 
-export async function deleteUser(req: Request, res: Response) {
+export async function deleteUser(req: AuthenticatedRequest, res: Response) {
   const { id } = req.params;
+  const adminId = req.user?.id;
+
+  if (!adminId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
   try {
     const targetUser = await prisma.user.findUnique({ where: { id } });
@@ -267,7 +351,7 @@ export async function deleteUser(req: Request, res: Response) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    if ((req as any).user?.id === id) {
+    if (adminId === id) {
       return res.status(400).json({ error: "Admins cannot delete their own account." });
     }
 
@@ -282,38 +366,13 @@ export async function deleteUser(req: Request, res: Response) {
 
     // Recalculate risk scores for affected numbers
     for (const numberId of uniqueNumberIds) {
-      const phoneNumber = await prisma.phoneNumber.findUnique({ where: { id: numberId } });
-      if (phoneNumber) {
-        const totalReportsCount = await prisma.report.count({ where: { numberId } });
-
-        const uniqueUsersAgg = await prisma.report.groupBy({
-          by: ["userId"],
-          where: { numberId },
-        });
-        const uniqueUsersCount = uniqueUsersAgg.length;
-
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const recentReportsCount = await prisma.report.count({
-          where: { numberId, createdAt: { gte: thirtyDaysAgo } },
-        });
-
-        const newRiskScore = calculateRiskScore({
-          totalReports: totalReportsCount,
-          countryCode: phoneNumber.countryCode || undefined,
-          uniqueUsers: uniqueUsersCount,
-          recentReports: recentReportsCount,
-        });
-
-        await prisma.phoneNumber.update({
-          where: { id: numberId },
-          data: {
-            riskScore: newRiskScore,
-            totalReport: totalReportsCount,
-          },
-        });
-      }
+      await recalculateRiskAndTotal(numberId);
     }
+
+    // Log admin action
+    await logAdminAction(adminId, "DELETE_USER", "User", id, {
+      userEmail: targetUser.email,
+    });
 
     logger.info(`Admin deleted user ID: ${id}`);
     return res.json({ message: "User account and their reports deleted successfully" });
@@ -344,8 +403,13 @@ export async function getNumbers(req: Request, res: Response) {
   }
 }
 
-export async function deleteNumber(req: Request, res: Response) {
+export async function deleteNumber(req: AuthenticatedRequest, res: Response) {
   const { id } = req.params;
+  const adminId = req.user?.id;
+
+  if (!adminId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
   try {
     const phoneNumber = await prisma.phoneNumber.findUnique({ where: { id } });
@@ -355,6 +419,11 @@ export async function deleteNumber(req: Request, res: Response) {
 
     await prisma.phoneNumber.delete({ where: { id } });
 
+    // Log admin action
+    await logAdminAction(adminId, "DELETE_PHONE_NUMBER", "PhoneNumber", id, {
+      number: phoneNumber.number,
+    });
+
     logger.info(`Admin deleted phone number ID: ${id} (${phoneNumber.number})`);
     return res.json({ message: "Phone number and all associated reports deleted successfully" });
   } catch (err: any) {
@@ -363,15 +432,28 @@ export async function deleteNumber(req: Request, res: Response) {
   }
 }
 
-export async function createNumber(req: Request, res: Response) {
+export async function createNumber(req: AuthenticatedRequest, res: Response) {
   const { number, countryCode, riskScore } = req.body;
+  const adminId = req.user?.id;
+
+  if (!adminId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   if (!number) {
     return res.status(400).json({ error: "Phone number is required." });
   }
 
+  // Parse and normalize manually added phone number
+  const phoneNumberObj = parsePhoneNumberFromString(number, "KH");
+  if (!phoneNumberObj || !phoneNumberObj.isValid()) {
+    return res.status(400).json({ error: "Invalid phone number format." });
+  }
+  const cleanNumber = phoneNumberObj.number;
+
   try {
     // Check if number already exists
-    const existing = await prisma.phoneNumber.findUnique({ where: { number } });
+    const existing = await prisma.phoneNumber.findUnique({ where: { number: cleanNumber } });
     if (existing) {
       return res.status(400).json({ error: "Phone number already exists in registry." });
     }
@@ -379,14 +461,20 @@ export async function createNumber(req: Request, res: Response) {
     const parsedRisk = Math.min(100, Math.max(0, parseInt(riskScore) || 50));
     const newNumber = await prisma.phoneNumber.create({
       data: {
-        number,
-        countryCode: countryCode || null,
+        number: cleanNumber,
+        countryCode: countryCode || phoneNumberObj.country || null,
         riskScore: parsedRisk,
         totalReport: 0,
       },
     });
 
-    logger.info(`Admin manually flagged phone number: ${number} (Risk: ${parsedRisk}%)`);
+    // Log admin action
+    await logAdminAction(adminId, "CREATE_PHONE_NUMBER", "PhoneNumber", newNumber.id, {
+      number: cleanNumber,
+      riskScore: parsedRisk,
+    });
+
+    logger.info(`Admin manually flagged phone number: ${cleanNumber} (Risk: ${parsedRisk}%)`);
     return res.json(newNumber);
   } catch (err: any) {
     logger.error(`Error creating phone number manually: ${err.message}`);
@@ -405,4 +493,46 @@ export async function exportNumbers(req: Request, res: Response) {
     return res.status(500).json({ error: "Internal server error" });
   }
 }
+
+export async function getAuditLogs(req: AuthenticatedRequest, res: Response) {
+  const page = Math.max(1, parseInt((req.query.page as string) || "1"));
+  const limit = Math.min(100, parseInt((req.query.limit as string) || "50"));
+  const skip = (page - 1) * limit;
+
+  try {
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.auditLog.count(),
+    ]);
+
+    // Premium touch: fetch users/admins list to map admin IDs to emails
+    const admins = await prisma.user.findMany({
+      where: { role: Role.ADMIN },
+      select: { id: true, email: true },
+    });
+
+    const emailMap = new Map(admins.map((a) => [a.id, a.email]));
+
+    const formattedLogs = logs.map((log) => ({
+      ...log,
+      adminEmail: emailMap.get(log.adminId) || "Unknown Admin",
+    }));
+
+    return res.json({
+      data: formattedLogs,
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+    });
+  } catch (err: any) {
+    logger.error(`Error fetching audit logs: ${err.message}`);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 

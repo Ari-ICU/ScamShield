@@ -16,7 +16,8 @@ import {
   ShieldCheck,
   Globe,
   Lock,
-  Phone
+  Phone,
+  FileText
 } from "lucide-react";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -29,8 +30,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const sidebarLinks = [
     { href: "/admin", label: t("adminPanel"), icon: LayoutDashboard },
     { href: "/admin/moderation", label: t("moderationQueue"), icon: AlertTriangle },
+    { href: "/admin/appeals", label: "Appeals Moderation", icon: ShieldCheck },
     { href: "/admin/users", label: t("userAccounts"), icon: Users },
     { href: "/admin/numbers", label: t("phoneRegistry") || "Phone Registry", icon: Phone },
+    { href: "/admin/audit-logs", label: "Audit Logs", icon: FileText },
   ];
 
   const isActive = (href: string) => {

@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import RiskBadge from "@/components/RiskBadge";
 import { useLanguage } from "@/context/LanguageContext";
+import { useAuth } from "@/context/AuthContext";
 import { API_BASE } from "@/lib/api";
 import {
   ShieldAlert,
@@ -19,8 +20,16 @@ import {
   ChevronRight,
   ShieldCheck,
   AlertTriangle,
-  MapPin
+  MapPin,
+  Eye,
+  TrendingUp
 } from "lucide-react";
+
+interface Evidence {
+  id: string;
+  fileUrl: string;
+  fileType: string;
+}
 
 interface Report {
   id: string;
@@ -31,9 +40,13 @@ interface Report {
   district: string | null;
   commune: string | null;
   village: string | null;
+  status: string;
+  evidence: Evidence[];
+  userId?: string;
 }
 
 interface NumberDetails {
+  id?: string;
   number: string;
   country: string;
   countryCode: string;
@@ -44,18 +57,25 @@ interface NumberDetails {
   totalReports: number;
   reports: Report[];
   recentReportsCount: number;
+  evidenceCounts: { screenshots: number; audio: number; documents: number };
+  commonScamType: string;
+  lastReportedText: string;
+  historyTimeline: { month: string; riskScore: number }[];
 }
 
 function SearchResultsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
+  const { user, apiFetch } = useAuth();
   const phone = searchParams.get("phone") || "";
 
   const [searchQuery, setSearchQuery] = useState(phone);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState<NumberDetails | null>(null);
+  const [isWatched, setIsWatched] = useState(false);
+  const [watchLoading, setWatchLoading] = useState(false);
 
   const fetchDetails = async (numberToFetch: string) => {
     if (!numberToFetch) return;
@@ -80,6 +100,47 @@ function SearchResultsContent() {
       setLoading(false);
     }
   }, [phone]);
+
+  useEffect(() => {
+    if (user && data) {
+      apiFetch("/watchlist")
+        .then((list: any[]) => {
+          const item = list.find((w) => w.number === data.number);
+          setIsWatched(!!item);
+        })
+        .catch(() => {});
+    } else {
+      setIsWatched(false);
+    }
+  }, [user, data]);
+
+  const handleWatchToggle = async () => {
+    if (!data) return;
+    setWatchLoading(true);
+    try {
+      if (isWatched) {
+        const list = await apiFetch("/watchlist");
+        const item = list.find((w: any) => w.number === data.number);
+        if (item) {
+          await apiFetch(`/watchlist/${item.numberId}`, {
+            method: "DELETE",
+          });
+          setIsWatched(false);
+        }
+      } else {
+        await apiFetch("/watchlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ number: data.number }),
+        });
+        setIsWatched(true);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setWatchLoading(false);
+    }
+  };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,6 +223,22 @@ function SearchResultsContent() {
                 <h2 className="text-2xl font-mono font-bold text-white tracking-wide break-words">
                   {data.number}
                 </h2>
+                {user && (
+                  <button
+                    onClick={handleWatchToggle}
+                    disabled={watchLoading}
+                    className={`mt-3.5 w-full py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 active:scale-[0.98] cursor-pointer ${
+                      isWatched
+                        ? "bg-slate-900 border border-slate-800 text-red-450 hover:bg-slate-850 hover:text-red-400"
+                        : "bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-550/15"
+                    }`}
+                  >
+                    <Eye className="w-4 h-4" />
+                    {isWatched
+                      ? (language === "kh" ? "ឈប់តាមដានលេខនេះ" : "Unwatch Number")
+                      : (language === "kh" ? "តាមដានលេខនេះ" : "Watch Number")}
+                  </button>
+                )}
               </div>
 
               {/* Radial Score Gauge */}
@@ -241,6 +318,45 @@ function SearchResultsContent() {
                   </span>
                   <span className="font-semibold text-white font-mono">{data.recentReportsCount} (7d)</span>
                 </div>
+
+                {/* Contributors list */}
+                {data.riskScore > 0 && (
+                  <div className="bg-[#0d0e12]/60 p-4 rounded-xl border border-slate-900 text-xs space-y-3 mt-4">
+                    <h4 className="font-bold text-slate-400 uppercase tracking-wider">
+                      {language === "kh" ? "សមាសភាគវាយតម្លៃហានិភ័យ" : "Risk Contributors"}
+                    </h4>
+                    <div className="space-y-2 font-medium">
+                      <div className="flex items-center gap-2 text-slate-350">
+                        <span className="text-emerald-500">✓</span>
+                        <span>
+                          {data.reports.filter(r => r.status === "APPROVED").length}{" "}
+                          {language === "kh" ? "របាយការណ៍ត្រូវបានអនុម័ត" : "approved reports"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-350">
+                        <span className="text-emerald-500">✓</span>
+                        <span>
+                          {new Set(data.reports.map(r => r.userId || r.id)).size}{" "}
+                          {language === "kh" ? "គណនីរាយការណ៍ផ្សេងគ្នា" : "different reporters"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-350">
+                        <span className="text-emerald-500">✓</span>
+                        <span>
+                          {data.evidenceCounts.screenshots + data.evidenceCounts.audio + data.evidenceCounts.documents}{" "}
+                          {language === "kh" ? "ឯកសារភស្តុតាងភ្ជាប់" : "evidence files"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-350">
+                        <span className="text-emerald-500">✓</span>
+                        <span>
+                          {data.recentReportsCount}{" "}
+                          {language === "kh" ? "របាយការណ៍ក្នុងរយៈពេល៧ថ្ងៃចុងក្រោយ" : "reports in last 7 days"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -252,12 +368,56 @@ function SearchResultsContent() {
               </p>
               <button
                 onClick={() => router.push(`/report?phone=${encodeURIComponent(data.number)}`)}
-                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-red-950/20 border border-red-500/20 text-red-400 hover:bg-red-950/40 hover:border-red-500/30 transition flex items-center justify-center gap-1.5"
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-red-950/20 border border-red-500/20 text-red-400 hover:bg-red-950/40 hover:border-red-500/30 transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <AlertTriangle className="h-4 w-4" />
                 {t("reportNumberButton")}
               </button>
+              {data.riskScore > 0 && (
+                <button
+                  onClick={() => router.push(`/appeal?phone=${encodeURIComponent(data.number)}`)}
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white transition flex items-center justify-center gap-1.5 mt-2 cursor-pointer"
+                >
+                  <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                  Appeal Scam Rating
+                </button>
+              )}
             </div>
+
+            {/* Timeline Chart */}
+            {data.historyTimeline && data.historyTimeline.length > 0 && (
+              <div className="glass p-6 rounded-2xl border border-slate-800 space-y-4">
+                <h3 className="font-bold text-xs text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-red-500" />
+                  {language === "kh" ? "ប្រវត្តិនៃការពិន្ទុហានិភ័យ" : "Risk Score History"}
+                </h3>
+                <div className="flex items-end justify-between gap-1 pt-6 h-28 px-1 border-b border-slate-900/60">
+                  {data.historyTimeline.map((pt, idx) => (
+                    <div key={idx} className="flex flex-col items-center flex-grow group relative">
+                      {/* Tooltip on hover */}
+                      <div className="absolute opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 border border-slate-850 px-2 py-0.5 rounded text-[9px] text-white font-mono -top-6 pointer-events-none z-10 whitespace-nowrap shadow-xl">
+                        {pt.riskScore}%
+                      </div>
+                      {/* Bar */}
+                      <div
+                        style={{ height: `${Math.max(pt.riskScore, 4)}%` }}
+                        className={`w-full max-w-[28px] rounded-t-sm transition-all duration-500 ${
+                          pt.riskScore >= 75
+                            ? "bg-gradient-to-t from-red-600/80 to-red-550"
+                            : pt.riskScore >= 30
+                            ? "bg-gradient-to-t from-orange-500/80 to-orange-450"
+                            : "bg-gradient-to-t from-emerald-600/85 to-emerald-500"
+                        }`}
+                      />
+                      {/* Month label */}
+                      <span className="text-[9px] text-slate-550 font-bold mt-2">
+                        {pt.month}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Details & Reports Timeline Section */}
@@ -322,9 +482,52 @@ function SearchResultsContent() {
                                   </span>
                                 </div>
                               )}
-                              <p className="text-sm text-slate-300 mt-2.5 bg-slate-950/40 p-3.5 rounded-xl border border-slate-900/60 leading-relaxed font-sans">
+                              <p className="text-sm text-slate-300 mt-2.5 bg-slate-950/40 p-3.5 rounded-xl border border-slate-900/60 leading-relaxed font-sans font-medium">
                                 {report.description || t("noDescription")}
                               </p>
+                              {report.evidence && report.evidence.length > 0 && (
+                                <div className="mt-3.5 space-y-2">
+                                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                    Evidence Attachments
+                                  </p>
+                                  <div className="flex flex-wrap gap-3">
+                                    {report.evidence.map((file) => {
+                                      const fullUrl = `${API_BASE.replace("/api", "")}${file.fileUrl}`;
+                                      if (file.fileType.startsWith("image/")) {
+                                        return (
+                                          <a
+                                            key={file.id}
+                                            href={fullUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="group/thumb relative block shrink-0"
+                                          >
+                                            <img
+                                              src={fullUrl}
+                                              alt="Evidence"
+                                              className="w-16 h-16 object-cover rounded-lg border border-slate-800 hover:border-slate-755 transition"
+                                            />
+                                          </a>
+                                        );
+                                      } else if (file.fileType.startsWith("audio/")) {
+                                        return (
+                                          <div key={file.id} className="w-full max-w-xs bg-slate-950/80 p-2.5 rounded-xl border border-slate-850 flex flex-col gap-1.5">
+                                            <span className="text-[10px] text-slate-400 font-semibold truncate">
+                                              Audio Recording
+                                            </span>
+                                            <audio
+                                              controls
+                                              src={fullUrl}
+                                              className="w-full h-8 accent-red-500 text-xs"
+                                            />
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>

@@ -27,6 +27,9 @@ export default function MobilePairPage() {
   const [gpsStatus, setGpsStatus] = useState<"idle" | "active" | "error">("idle");
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [lookupNumberState, setLookupNumberState] = useState("0969551630");
+  const [lookupResult, setLookupResult] = useState<any>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
 
   const [activeNumber, setActiveNumber] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -238,6 +241,21 @@ export default function MobilePairPage() {
       setSubmitStatus("ERROR");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleLookupSimulate = async () => {
+    if (!lookupNumberState.trim()) return;
+    setLookupLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/calls/lookup/${encodeURIComponent(lookupNumberState.trim())}`);
+      if (!res.ok) throw new Error("Caller ID lookup failed");
+      const data = await res.json();
+      setLookupResult(data);
+    } catch (err) {
+      console.error("Error simulating Caller ID lookup:", err);
+    } finally {
+      setLookupLoading(false);
     }
   };
 
@@ -504,6 +522,102 @@ export default function MobilePairPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* ── Caller ID App Simulator Card ── */}
+          <div className="rounded-2xl border border-white/5 bg-[rgba(13,18,30,0.88)] overflow-hidden animate-in fade-in duration-300">
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-white/5 bg-white/[0.02]">
+              <Smartphone className="h-4 w-4 text-emerald-500 animate-pulse" />
+              <h3 className="text-xs font-bold uppercase text-white tracking-wider">
+                {t("Android Caller ID Simulator", "ប្រព័ន្ធសាកល្បងបង្ហាញលេខឆបោក")}
+              </h3>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-slate-500 text-[11px] leading-relaxed">
+                {t(
+                  "Query the optimized mobile Caller ID lookup endpoint. Test what the device displays locally on incoming call overlays.",
+                  "សាកល្បងមើលថាតើប្រព័ន្ធបង្ហាញលេខទូរស័ព្ទរបស់ Android ដំណើរការដូចម្តេចនៅពេលមានការខលចូល។"
+                )}
+              </p>
+
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={lookupNumberState}
+                    onChange={(e) => setLookupNumberState(e.target.value)}
+                    placeholder="e.g. +85512345678"
+                    className="flex-grow px-3.5 py-2.5 bg-black/30 border border-white/8 rounded-xl text-sm text-white focus:outline-none focus:border-emerald-500/50 transition font-mono"
+                  />
+                  <button
+                    onClick={handleLookupSimulate}
+                    disabled={lookupLoading}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs transition active:scale-[0.97] cursor-pointer shrink-0"
+                  >
+                    {lookupLoading ? "..." : t("Test", "តេស្ត")}
+                  </button>
+                </div>
+
+                {/* Simulated Mobile Phone Incoming Call Alert Screen */}
+                {lookupResult && (
+                  <div className="border border-white/5 rounded-2xl bg-[#090b10] overflow-hidden shadow-2xl relative animate-in slide-in-from-bottom duration-300 mt-4">
+                    {/* Mock incoming call screen header */}
+                    <div className="p-3 bg-white/[0.01] border-b border-white/5 text-center">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                        {t("INCOMING CALL MOCKUP", "ការខលចូលសាកល្បង")}
+                      </span>
+                    </div>
+
+                    <div className="p-5 text-center space-y-4">
+                      <div className="space-y-1">
+                        <span className="text-xl font-bold font-mono text-white tracking-wide block">
+                          {lookupResult.number}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          {t("Unknown Caller Location", "មិនស្គាល់ទីតាំង")}
+                        </span>
+                      </div>
+
+                      {/* Truecaller alert banner */}
+                      <div className={`p-4 rounded-xl border text-left space-y-1.5 ${
+                        lookupResult.riskScore >= 75
+                          ? "bg-red-500/10 border-red-500/25 text-red-200"
+                          : lookupResult.riskScore >= 30
+                          ? "bg-orange-500/10 border-orange-500/25 text-orange-200"
+                          : "bg-emerald-500/10 border-emerald-500/25 text-emerald-200"
+                      }`}>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-bold uppercase tracking-wider">
+                            {lookupResult.isScam ? "⚠️ SCAM ALERT" : "✓ SCAMSHIELD VERIFIED"}
+                          </span>
+                          <span className="text-xs font-black font-mono">
+                            {lookupResult.riskScore}%
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold text-white leading-relaxed">
+                          {lookupResult.warningMessage}
+                        </p>
+                        <div className="text-[9px] text-slate-500 leading-normal flex flex-wrap gap-x-2.5 gap-y-1 pt-1 border-t border-white/5">
+                          <span>Category: <strong className="text-slate-350">{lookupResult.scamType}</strong></span>
+                          <span>Reports: <strong className="text-slate-350">{lookupResult.totalReports}</strong></span>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-4 justify-center py-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setLookupResult(null)}
+                          className="px-4 py-2 bg-slate-900 hover:bg-slate-850 hover:text-white text-slate-400 rounded-lg text-xs font-bold transition active:scale-95 cursor-pointer"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

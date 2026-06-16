@@ -30,6 +30,11 @@ export function initSocket(server: HttpServer): SocketServer {
   io.on("connection", (socket) => {
     logger.info(`Socket connected: ${socket.id}`);
 
+    socket.on("join_user", (userId: string) => {
+      socket.join(`user:${userId}`);
+      logger.info(`Socket ${socket.id} joined room user:${userId}`);
+    });
+
     socket.on("disconnect", () => {
       logger.info(`Socket disconnected: ${socket.id}`);
     });
@@ -43,6 +48,13 @@ export function getIO(): SocketServer {
     throw new Error("Socket.io is not initialized!");
   }
   return io;
+}
+
+export function sendInAppNotification(userId: string, notification: any) {
+  if (io) {
+    io.to(`user:${userId}`).emit("notification", notification);
+    logger.info(`Sent in-app notification to user:${userId}: ${notification.title}`);
+  }
 }
 
 export function broadcastNewReport(reportData: any) {

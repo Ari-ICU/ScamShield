@@ -6,11 +6,24 @@ import dotenv from "dotenv";
 import { initSocket } from "./socket/socket.js";
 import apiRouter from "./routes/api.js";
 import logger from "./utils/logger.js";
+import "./jobs/worker.js";
+import { jobQueue } from "./jobs/worker.js";
 
 dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
+
+// Schedule background jobs
+jobQueue.add("NIGHTLY_RISK_RECALC", {}, {
+  repeat: { pattern: "0 0 * * *" }
+}).catch((err) => {
+  logger.error(`Failed to schedule NIGHTLY_RISK_RECALC repeatable job: ${err.message}`);
+});
+
+jobQueue.add("STATS_COMPILER", {}).catch((err) => {
+  logger.error(`Failed to schedule initial STATS_COMPILER job: ${err.message}`);
+});
 
 // Initialize Socket.io
 initSocket(httpServer);
@@ -46,6 +59,10 @@ app.use((req, _res, next) => {
 
 // Mount API routes
 app.use("/api", apiRouter);
+
+// Serve static uploads
+app.use("/uploads", express.static("uploads"));
+
 
 // Global Error Handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

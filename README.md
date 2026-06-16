@@ -268,6 +268,14 @@ npm run start        # Run production build
 npm run lint         # Lint check
 ```
 
+### Packaging (Zip without node_modules)
+
+To package the project into a lightweight ZIP archive for sharing or deployment (automatically ignoring `node_modules`, `.next`, `dist`, `.env` secrets, logs, and other untracked artifacts):
+
+```bash
+./zip_project.sh
+```
+
 ---
 
 ## 🧪 Testing the Call Tracker

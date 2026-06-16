@@ -23,42 +23,124 @@ enum ScamType {
   OTHER
 }
 
+enum ReportStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  UNDER_REVIEW
+}
+
+enum AppealStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  role      Role     @default(USER)
-  reports   Report[]
-  createdAt DateTime @default(now())
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  role          Role           @default(USER)
+  reporterScore Int            @default(0)
+  reports       Report[]
+  watchlist     Watchlist[]
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
 }
 
 model PhoneNumber {
-  id          String   @id @default(uuid())
-  number      String   @unique
+  id          String      @id @default(uuid())
+  number      String      @unique
   countryCode String?
-  riskScore   Int      @default(0)
-  totalReport Int      @default(0)
+  riskScore   Int         @default(0)
+  totalReport Int         @default(0)
   reports     Report[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  appeals     Appeal[]
+  watchlists  Watchlist[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   @@index([number])
 }
 
 model Report {
-  id            String      @id @default(uuid())
+  id            String       @id @default(uuid())
   description   String?
   category      ScamType
+  status        ReportStatus @default(PENDING)
   userId        String
   numberId      String
   province      String?
   district      String?
   commune       String?
   village       String?
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  phoneNumber   PhoneNumber @relation(fields: [numberId], references: [id], onDelete: Cascade)
-  createdAt     DateTime    @default(now())
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumber   PhoneNumber  @relation(fields: [numberId], references: [id], onDelete: Cascade)
+  evidence      Evidence[]
+  createdAt     DateTime     @default(now())
 
   @@index([userId])
   @@index([numberId])
 }
+
+model Evidence {
+  id        String   @id @default(uuid())
+  fileUrl   String
+  fileType  String
+  reportId  String
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([reportId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  adminId   String
+  action    String
+  entity    String
+  entityId  String
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+model Appeal {
+  id           String       @id @default(uuid())
+  numberId     String
+  phoneNumber  PhoneNumber  @relation(fields: [numberId], references: [id], onDelete: Cascade)
+  reason       String
+  proofUrl     String?
+  contactEmail String
+  status       AppealStatus @default(PENDING)
+  createdAt    DateTime     @default(now())
+  resolvedAt   DateTime?
+
+  @@index([numberId])
+}
+
+model Watchlist {
+  id          String      @id @default(uuid())
+  userId      String
+  numberId    String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumber PhoneNumber @relation(fields: [numberId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+
+  @@unique([userId, numberId])
+  @@index([userId])
+  @@index([numberId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   // e.g., "REPORT", "APPEAL", "MODERATION", "WATCHLIST_UPDATE"
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
