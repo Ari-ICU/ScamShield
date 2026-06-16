@@ -110,54 +110,6 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Development Mode Role Selection Toggle */}
-            <div className="space-y-2.5">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">
-                {t("systemRole")}
-              </label>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => setRole("USER")}
-                  className={`group/role p-3 rounded-xl border text-left transition-all duration-300 relative cursor-pointer ${
-                    role === "USER"
-                      ? "border-red-500/40 bg-red-500/10 shadow-lg shadow-red-950/10"
-                      : "border-slate-850 bg-slate-900/40 hover:border-slate-700/80 hover:bg-slate-900/60"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className={`p-1.5 rounded-lg border transition-colors ${role === "USER" ? "bg-red-500/20 border-red-500/20 text-red-400" : "bg-slate-800 border-slate-750 text-slate-400 group-hover/role:text-slate-300"}`}>
-                      <User className="h-4 w-4" />
-                    </div>
-                    <span className={`text-sm font-semibold transition-colors ${role === "USER" ? "text-white" : "text-slate-300"}`}>{t("standardUser")}</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-normal">
-                    Report scam numbers and track your watchlist
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRole("ADMIN")}
-                  className={`group/role p-3 rounded-xl border text-left transition-all duration-300 relative cursor-pointer ${
-                    role === "ADMIN"
-                      ? "border-red-500/40 bg-red-500/10 shadow-lg shadow-red-950/10"
-                      : "border-slate-850 bg-slate-900/40 hover:border-slate-700/80 hover:bg-slate-900/60"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className={`p-1.5 rounded-lg border transition-colors ${role === "ADMIN" ? "bg-red-500/20 border-red-500/20 text-red-400" : "bg-slate-800 border-slate-750 text-slate-400 group-hover/role:text-slate-300"}`}>
-                      <Shield className="h-4 w-4" />
-                    </div>
-                    <span className={`text-sm font-semibold transition-colors ${role === "ADMIN" ? "text-white" : "text-slate-300"}`}>{t("administrator")}</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-normal">
-                    Approve/reject listings and moderate reports
-                  </p>
-                </button>
-              </div>
-            </div>
-
             <button
               type="submit"
               disabled={loading}

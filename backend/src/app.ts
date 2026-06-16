@@ -3,6 +3,8 @@ import { createServer } from "http";
 import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
+import bcrypt from "bcryptjs";
+import prisma from "./prisma/prismaClient.js";
 import { initSocket } from "./socket/socket.js";
 import apiRouter from "./routes/api.js";
 import logger from "./utils/logger.js";
@@ -72,11 +74,45 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   });
 });
 
+async function seedDefaultAdmin() {
+  try {
+    const adminEmail = "admin@scamshield.gov.kh";
+    const existingAdmin = await prisma.user.findUnique({
+      where: { email: adminEmail }
+    });
+
+    if (!existingAdmin) {
+      const hashedPassword = await bcrypt.hash("Admin12345!", 10);
+      await prisma.user.create({
+        data: {
+          email: adminEmail,
+          password: hashedPassword,
+          role: "ADMIN",
+          isEmailVerified: true,
+          reporterProfile: {
+            create: {
+              reputationScore: 100,
+              verificationLevel: "VERIFIED",
+            }
+          }
+        }
+      });
+      logger.info("✅ Default administrator account seeded successfully (admin@scamshield.gov.kh)");
+    } else {
+      logger.info("ℹ️ Default administrator account already exists.");
+    }
+  } catch (err: any) {
+    logger.error(`❌ Failed to seed default administrator: ${err.message}`);
+  }
+}
+
 const PORT = process.env.PORT || 4000;
 
 if (process.env.NODE_ENV !== "test") {
-  httpServer.listen(PORT, () => {
-    logger.info(`🚀 ScamShield Cambodia API ready on port ${PORT}`);
+  seedDefaultAdmin().then(() => {
+    httpServer.listen(PORT, () => {
+      logger.info(`🚀 ScamShield Cambodia API ready on port ${PORT}`);
+    });
   });
 }
 

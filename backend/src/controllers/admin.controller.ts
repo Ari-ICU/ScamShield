@@ -35,6 +35,8 @@ export async function getStats(req: Request, res: Response) {
       where: { createdAt: { gte: today } },
     });
 
+    const activeReporters = await prisma.user.count();
+
     // Category distribution
     const categoryGroup = await prisma.report.groupBy({
       by: ["category"],
@@ -97,6 +99,7 @@ export async function getStats(req: Request, res: Response) {
     const result = {
       totalScamNumbers,
       reportsToday,
+      activeReporters,
       categoryDistribution,
       countryDistribution,
       provinceDistribution,

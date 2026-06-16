@@ -146,9 +146,9 @@ function ReportFormContent() {
   const carrier = detectCarrier(number);
 
   const [stats, setStats] = useState<DashboardStats>({
-    totalScamNumbers: 1482,
-    reportsToday: 38,
-    activeReporters: 840,
+    totalScamNumbers: 0,
+    reportsToday: 0,
+    activeReporters: 0,
   });
 
   useEffect(() => {
@@ -159,7 +159,7 @@ function ReportFormContent() {
           setStats({
             totalScamNumbers: data.totalScamNumbers,
             reportsToday: data.reportsToday,
-            activeReporters: data.totalScamNumbers > 0 ? Math.ceil(data.totalScamNumbers * 0.6) : 840,
+            activeReporters: data.activeReporters !== undefined ? data.activeReporters : 0,
           });
         }
       })

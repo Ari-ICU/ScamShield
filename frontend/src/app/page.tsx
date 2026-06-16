@@ -24,9 +24,9 @@ export default function HomePage() {
   const { t } = useLanguage();
   const [phoneQuery, setPhoneQuery] = useState("");
   const [stats, setStats] = useState<any>({
-    totalScamNumbers: 1482,
-    reportsToday: 38,
-    activeReporters: 840,
+    totalScamNumbers: 0,
+    reportsToday: 0,
+    activeReporters: 0,
     categoryDistribution: [],
   });
   const [recentReports, setRecentReports] = useState<any[]>([]);
@@ -41,7 +41,7 @@ export default function HomePage() {
           setStats({
             totalScamNumbers: data.totalScamNumbers,
             reportsToday: data.reportsToday,
-            activeReporters: data.totalScamNumbers > 0 ? Math.ceil(data.totalScamNumbers * 0.6) : 840,
+            activeReporters: data.activeReporters !== undefined ? data.activeReporters : 0,
             categoryDistribution: data.categoryDistribution || [],
           });
         }
