@@ -21,34 +21,40 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   // Load token on mount
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem("scamshield_user");
-      const storedAccess = localStorage.getItem("scamshield_access");
-      const storedRefresh = localStorage.getItem("scamshield_refresh");
-
-      if (storedUser && storedAccess && storedRefresh) {
-        setUser(JSON.parse(storedUser));
-        setAccessToken(storedAccess);
-        setRefreshToken(storedRefresh);
+    const initAuth = async () => {
+      try {
+        const storedUser = localStorage.getItem("scamshield_user");
+        if (storedUser) {
+          const res = await fetch(`${API_BASE}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setUser(data.user);
+            setAccessToken(data.accessToken);
+            localStorage.setItem("scamshield_user", JSON.stringify(data.user));
+          } else {
+            localStorage.removeItem("scamshield_user");
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to initialize session:", err);
+        localStorage.removeItem("scamshield_user");
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.warn("Failed to load user session from storage:", err);
-      localStorage.removeItem("scamshield_user");
-      localStorage.removeItem("scamshield_access");
-      localStorage.removeItem("scamshield_refresh");
-    } finally {
-      setLoading(false);
-    }
+    };
+    initAuth();
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -56,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
+      credentials: "include",
     });
 
     const data = await res.json();
@@ -65,11 +72,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(data.user);
     setAccessToken(data.accessToken);
-    setRefreshToken(data.refreshToken);
 
     localStorage.setItem("scamshield_user", JSON.stringify(data.user));
-    localStorage.setItem("scamshield_access", data.accessToken);
-    localStorage.setItem("scamshield_refresh", data.refreshToken);
 
     router.push("/");
   };
@@ -79,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, role }),
+      credentials: "include",
     });
 
     const data = await res.json();
@@ -88,34 +93,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(data.user);
     setAccessToken(data.accessToken);
-    setRefreshToken(data.refreshToken);
 
     localStorage.setItem("scamshield_user", JSON.stringify(data.user));
-    localStorage.setItem("scamshield_access", data.accessToken);
-    localStorage.setItem("scamshield_refresh", data.refreshToken);
 
     router.push("/");
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (err) {
+      console.warn("Logout request failed:", err);
+    }
+    
     setUser(null);
     setAccessToken(null);
-    setRefreshToken(null);
 
     localStorage.removeItem("scamshield_user");
-    localStorage.removeItem("scamshield_access");
-    localStorage.removeItem("scamshield_refresh");
 
     router.push("/");
   };
 
   const handleRefreshToken = async (): Promise<string> => {
-    if (!refreshToken) throw new Error("No refresh token available");
-
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
+      credentials: "include",
     });
 
     const data = await res.json();
@@ -125,10 +131,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setAccessToken(data.accessToken);
-    setRefreshToken(data.refreshToken);
-    localStorage.setItem("scamshield_access", data.accessToken);
-    localStorage.setItem("scamshield_refresh", data.refreshToken);
-
     return data.accessToken;
   };
 
@@ -140,11 +142,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers.set("Authorization", `Bearer ${currentToken}`);
     }
     options.headers = headers;
+    options.credentials = "include";
 
     let res = await fetch(`${API_BASE}${path}`, options);
 
     // If forbidden or unauthorized, attempt refresh
-    if ((res.status === 401 || res.status === 403) && refreshToken) {
+    if (res.status === 401 || res.status === 403) {
       try {
         currentToken = await handleRefreshToken();
         headers.set("Authorization", `Bearer ${currentToken}`);

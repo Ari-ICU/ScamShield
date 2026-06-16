@@ -47,6 +47,8 @@ model User {
   emailVerificationToken String?
   passwordResetToken     String?
   passwordResetExpires   DateTime?
+  failedLoginAttempts    Int              @default(0)
+  lockoutUntil           DateTime?
   reports                Report[]
   watchlist              Watchlist[]
   notifications          Notification[]

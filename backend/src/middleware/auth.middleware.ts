@@ -11,18 +11,23 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export function authenticateJWT(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
+  let token: string | undefined = undefined;
 
-  if (!authHeader) {
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const parts = authHeader.split(" ");
+    if (parts.length === 2 && parts[0] === "Bearer") {
+      token = parts[1];
+    }
+  }
+
+  if (!token && req.query.token) {
+    token = req.query.token as string;
+  }
+
+  if (!token) {
     return res.status(401).json({ error: "Access token is missing" });
   }
-
-  const parts = authHeader.split(" ");
-  if (parts.length !== 2 || parts[0] !== "Bearer") {
-    return res.status(401).json({ error: "Token format must be Bearer <token>" });
-  }
-
-  const token = parts[1];
 
   try {
     const decoded = verifyAccessToken(token);

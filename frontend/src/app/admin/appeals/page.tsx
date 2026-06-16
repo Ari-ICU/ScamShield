@@ -20,7 +20,7 @@ interface Appeal {
 }
 
 export default function AppealsModeration() {
-  const { apiFetch } = useAuth();
+  const { apiFetch, accessToken } = useAuth();
   
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -284,7 +284,7 @@ export default function AppealsModeration() {
                     Proof Attachment Document
                   </span>
                   <a
-                    href={`http://localhost:4000${viewingAppeal.proofUrl}`}
+                    href={`http://localhost:4000${viewingAppeal.proofUrl}?token=${accessToken}`}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-2 p-3 bg-slate-950 hover:bg-slate-900 border border-slate-900 hover:border-slate-800 rounded-xl text-emerald-400 font-semibold transition"

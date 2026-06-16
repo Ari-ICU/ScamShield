@@ -11,6 +11,9 @@ import logger from "./utils/logger.js";
 import "./jobs/worker.js";
 import { jobQueue } from "./jobs/worker.js";
 
+import cookieParser from "cookie-parser";
+import { authenticateJWT } from "./middleware/auth.middleware.js";
+
 dotenv.config();
 
 const app = express();
@@ -32,18 +35,33 @@ initSocket(httpServer);
 
 // Middleware
 const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:3000";
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "*"],
+      connectSrc: ["'self'", "*", "ws:", "wss:"],
+    },
+  },
+}));
+app.use(cookieParser());
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
     
-    // Always allow local connections from developer machine on any port
-    const isLocal = /^(https?:\/\/)?(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin);
-    if (isLocal) {
-      return callback(null, true);
+    if (process.env.NODE_ENV === "production") {
+      if (origin === allowedOrigin) {
+        return callback(null, true);
+      }
+      return callback(null, false);
     }
     
-    if (origin === allowedOrigin) {
+    // Always allow local connections from developer machine on any port in development
+    const isLocal = /^(https?:\/\/)?(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin);
+    if (isLocal || origin === allowedOrigin) {
       return callback(null, true);
     }
     return callback(null, false);
@@ -62,8 +80,8 @@ app.use((req, _res, next) => {
 // Mount API routes
 app.use("/api", apiRouter);
 
-// Serve static uploads
-app.use("/uploads", express.static("uploads"));
+// Serve static uploads (protected)
+app.use("/uploads", authenticateJWT, express.static("uploads"));
 
 
 // Global Error Handler
@@ -76,13 +94,20 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 
 async function seedDefaultAdmin() {
   try {
-    const adminEmail = "admin@scamshield.gov.kh";
+    const adminEmail = process.env.DEFAULT_ADMIN_EMAIL;
+    const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+
+    if (!adminEmail || !adminPassword) {
+      logger.info("ℹ️ DEFAULT_ADMIN_EMAIL or DEFAULT_ADMIN_PASSWORD not set. Skipping default administrator seeding.");
+      return;
+    }
+
     const existingAdmin = await prisma.user.findUnique({
       where: { email: adminEmail }
     });
 
     if (!existingAdmin) {
-      const hashedPassword = await bcrypt.hash("Admin12345!", 10);
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
       await prisma.user.create({
         data: {
           email: adminEmail,
@@ -97,7 +122,7 @@ async function seedDefaultAdmin() {
           }
         }
       });
-      logger.info("✅ Default administrator account seeded successfully (admin@scamshield.gov.kh)");
+      logger.info(`✅ Default administrator account seeded successfully (${adminEmail})`);
     } else {
       logger.info("ℹ️ Default administrator account already exists.");
     }

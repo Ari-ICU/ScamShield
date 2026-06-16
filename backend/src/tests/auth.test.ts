@@ -27,7 +27,7 @@ describe("Auth Endpoints", () => {
 
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty("accessToken");
-      expect(response.body).toHaveProperty("refreshToken");
+      expect(response.headers["set-cookie"]).toBeDefined();
       expect(response.body.user).toEqual({
         id: "mock-user-id",
         email,
@@ -91,6 +91,7 @@ describe("Auth Endpoints", () => {
         email,
         password: hashedPassword,
         role: "USER",
+        isEmailVerified: true,
       } as any);
 
       const response = await request(app)
@@ -99,11 +100,12 @@ describe("Auth Endpoints", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("accessToken");
-      expect(response.body).toHaveProperty("refreshToken");
+      expect(response.headers["set-cookie"]).toBeDefined();
       expect(response.body.user).toEqual({
         id: "mock-user-id",
         email,
         role: "USER",
+        isEmailVerified: true,
       });
     });
 
@@ -117,6 +119,7 @@ describe("Auth Endpoints", () => {
         email,
         password: hashedPassword,
         role: "USER",
+        isEmailVerified: true,
       } as any);
 
       const response = await request(app)
@@ -136,6 +139,74 @@ describe("Auth Endpoints", () => {
 
       expect(response.status).toBe(401);
       expect(response.body.error).toBe("Invalid credentials");
+    });
+
+    it("should return 403 if email is not verified", async () => {
+      const email = "unverified@example.com";
+      const password = "password123";
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: "mock-user-id",
+        email,
+        password: hashedPassword,
+        role: "USER",
+        isEmailVerified: false,
+      } as any);
+
+      const response = await request(app)
+        .post("/api/auth/login")
+        .send({ email, password });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe("Verify email first");
+    });
+
+    it("should lock the account after 5 failed login attempts", async () => {
+      const email = "lockout@example.com";
+      const password = "password123";
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: "mock-user-id",
+        email,
+        password: hashedPassword,
+        role: "USER",
+        isEmailVerified: true,
+        failedLoginAttempts: 4,
+      } as any);
+
+      prismaMock.user.update.mockResolvedValue({} as any);
+
+      const response = await request(app)
+        .post("/api/auth/login")
+        .send({ email, password: "wrongpassword" });
+
+      expect(response.status).toBe(423);
+      expect(response.body.error).toContain("Too many failed login attempts");
+      expect(prismaMock.user.update).toHaveBeenCalled();
+    });
+
+    it("should return 423 if account is locked out", async () => {
+      const email = "locked@example.com";
+      const password = "password123";
+
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: "mock-user-id",
+        email,
+        password: "hashedpassword",
+        role: "USER",
+        isEmailVerified: true,
+        failedLoginAttempts: 5,
+        lockoutUntil: new Date(Date.now() + 15 * 60 * 1000),
+      } as any);
+
+      const response = await request(app)
+        .post("/api/auth/login")
+        .send({ email, password });
+
+      expect(response.status).toBe(423);
+      expect(response.body.error).toContain("Account is locked");
     });
   });
 
@@ -160,17 +231,16 @@ describe("Auth Endpoints", () => {
 
       const response = await request(app)
         .post("/api/auth/refresh")
-        .send({ refreshToken: validRefreshToken });
+        .set("Cookie", [`scamshield_refresh=${validRefreshToken}`]);
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("accessToken");
-      expect(response.body).toHaveProperty("refreshToken");
+      expect(response.headers["set-cookie"]).toBeDefined();
     });
 
     it("should return 400 if refresh token is missing", async () => {
       const response = await request(app)
-        .post("/api/auth/refresh")
-        .send({});
+        .post("/api/auth/refresh");
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBe("Refresh token is required");
@@ -179,7 +249,7 @@ describe("Auth Endpoints", () => {
     it("should return 403 for expired or invalid refresh token", async () => {
       const response = await request(app)
         .post("/api/auth/refresh")
-        .send({ refreshToken: "invalidtoken" });
+        .set("Cookie", ["scamshield_refresh=invalidtoken"]);
 
       expect(response.status).toBe(403);
       expect(response.body.error).toBe("Invalid or expired refresh token");
@@ -192,7 +262,7 @@ describe("Auth Endpoints", () => {
 
       const response = await request(app)
         .post("/api/auth/logout")
-        .send({ refreshToken: "mock-refresh-token" });
+        .set("Cookie", ["scamshield_refresh=mock-refresh-token"]);
 
       expect(response.status).toBe(200);
       expect(response.body.message).toBe("Logged out successfully");

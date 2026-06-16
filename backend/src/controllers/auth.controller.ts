@@ -6,6 +6,10 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from ".
 import { sendMail } from "../services/mailer.js";
 import logger from "../utils/logger.js";
 
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 export async function register(req: Request, res: Response) {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -30,7 +34,8 @@ export async function register(req: Request, res: Response) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const userRole = "USER";
-    const emailVerificationToken = crypto.randomBytes(32).toString("hex");
+    const rawVerificationToken = crypto.randomBytes(32).toString("hex");
+    const hashedVerificationToken = hashToken(rawVerificationToken);
 
     const user = await prisma.user.create({
       data: {
@@ -38,7 +43,7 @@ export async function register(req: Request, res: Response) {
         password: hashedPassword,
         role: userRole,
         isEmailVerified: false,
-        emailVerificationToken,
+        emailVerificationToken: hashedVerificationToken,
       },
     });
 
@@ -56,18 +61,26 @@ export async function register(req: Request, res: Response) {
       },
     });
 
-    // Send verification email asynchronously
+    // Set HttpOnly Cookie
+    res.cookie("scamshield_refresh", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/api/auth",
+    });
+
+    // Send verification email asynchronously using the raw token
     sendMail({
       to: user.email,
       subject: "Verify your email address - ScamShield",
-      text: `Welcome to ScamShield! Please verify your email by clicking the link or using the code: ${emailVerificationToken}`,
-      html: `<p>Welcome to ScamShield!</p><p>Please verify your email using this token: <strong>${emailVerificationToken}</strong></p>`,
+      text: `Welcome to ScamShield! Please verify your email by clicking the link or using the code: ${rawVerificationToken}`,
+      html: `<p>Welcome to ScamShield!</p><p>Please verify your email using this token: <strong>${rawVerificationToken}</strong></p>`,
     });
 
     return res.status(201).json({
       user: { id: user.id, email: user.email, role: user.role, isEmailVerified: user.isEmailVerified },
       accessToken,
-      refreshToken,
     });
   } catch (err: any) {
     logger.error(`Error in registration: ${err.message}`);
@@ -87,10 +100,52 @@ export async function login(req: Request, res: Response) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
+    // Check account lockout status
+    if (user.lockoutUntil && user.lockoutUntil > new Date()) {
+      return res.status(423).json({
+        error: `Account is locked. Please try again after ${user.lockoutUntil.toLocaleTimeString()}`,
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      const attempts = user.failedLoginAttempts + 1;
+      if (attempts >= 5) {
+        const lockoutUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            failedLoginAttempts: attempts,
+            lockoutUntil,
+          },
+        });
+        return res.status(423).json({
+          error: "Too many failed login attempts. Account is locked for 15 minutes.",
+        });
+      } else {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            failedLoginAttempts: attempts,
+          },
+        });
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
     }
+
+    // Enforce email verification
+    if (!user.isEmailVerified) {
+      return res.status(403).json({ error: "Verify email first" });
+    }
+
+    // Reset failed login attempts on successful login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginAttempts: 0,
+        lockoutUntil: null,
+      },
+    });
 
     logger.info(`User logged in successfully: ${email}`);
 
@@ -106,10 +161,18 @@ export async function login(req: Request, res: Response) {
       },
     });
 
+    // Set HttpOnly Cookie
+    res.cookie("scamshield_refresh", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/api/auth",
+    });
+
     return res.json({
       user: { id: user.id, email: user.email, role: user.role, isEmailVerified: user.isEmailVerified },
       accessToken,
-      refreshToken,
     });
   } catch (err: any) {
     logger.error(`Error in login: ${err.message}`);
@@ -118,7 +181,7 @@ export async function login(req: Request, res: Response) {
 }
 
 export async function refresh(req: Request, res: Response) {
-  const { refreshToken } = req.body;
+  const refreshToken = req.cookies?.scamshield_refresh;
   if (!refreshToken) {
     return res.status(400).json({ error: "Refresh token is required" });
   }
@@ -139,11 +202,13 @@ export async function refresh(req: Request, res: Response) {
         });
         logger.warn(`Suspicious refresh token reuse detected for userId: ${tokenRecord.userId}. Revoking all tokens.`);
       }
+      res.clearCookie("scamshield_refresh", { path: "/api/auth" });
       return res.status(403).json({ error: "Invalid or expired refresh token" });
     }
 
     const user = await prisma.user.findUnique({ where: { id: decoded.id } });
     if (!user) {
+      res.clearCookie("scamshield_refresh", { path: "/api/auth" });
       return res.status(401).json({ error: "User no longer exists" });
     }
 
@@ -164,32 +229,45 @@ export async function refresh(req: Request, res: Response) {
       },
     });
 
+    // Set rotated token in HttpOnly Cookie
+    res.cookie("scamshield_refresh", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/api/auth",
+    });
+
     return res.json({
       accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
+      user: { id: user.id, email: user.email, role: user.role, isEmailVerified: user.isEmailVerified }
     });
   } catch (err: any) {
     logger.warn(`Failed token refresh attempt: ${err.message}`);
+    res.clearCookie("scamshield_refresh", { path: "/api/auth" });
     return res.status(403).json({ error: "Invalid or expired refresh token" });
   }
 }
 
 export async function logout(req: Request, res: Response) {
-  const { refreshToken } = req.body;
-  if (!refreshToken) {
-    return res.status(400).json({ error: "Refresh token is required" });
+  const refreshToken = req.cookies?.scamshield_refresh;
+  
+  try {
+    if (refreshToken) {
+      // Delete the refresh token from DB so it cannot be used again
+      await prisma.refreshToken.deleteMany({
+        where: { token: refreshToken },
+      });
+    }
+  } catch (err: any) {
+    logger.error(`Error deleting refresh token in logout: ${err.message}`);
   }
 
-  try {
-    // Delete the refresh token from DB so it cannot be used again
-    await prisma.refreshToken.deleteMany({
-      where: { token: refreshToken },
-    });
-    return res.json({ message: "Logged out successfully" });
-  } catch (err: any) {
-    logger.error(`Error in logout: ${err.message}`);
-    return res.status(500).json({ error: "Internal server error" });
-  }
+  res.clearCookie("scamshield_refresh", {
+    path: "/api/auth",
+  });
+  
+  return res.json({ message: "Logged out successfully" });
 }
 
 export async function verifyEmail(req: Request, res: Response) {
@@ -199,8 +277,9 @@ export async function verifyEmail(req: Request, res: Response) {
   }
 
   try {
+    const hashedToken = hashToken(token);
     const user = await prisma.user.findFirst({
-      where: { emailVerificationToken: token },
+      where: { emailVerificationToken: hashedToken },
     });
 
     if (!user) {
@@ -235,23 +314,24 @@ export async function forgotPassword(req: Request, res: Response) {
       return res.json({ message: "If that email exists, reset instructions have been sent." });
     }
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
+    const rawResetToken = crypto.randomBytes(32).toString("hex");
+    const hashedResetToken = hashToken(rawResetToken);
     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        passwordResetToken: resetToken,
+        passwordResetToken: hashedResetToken,
         passwordResetExpires: resetExpires,
       },
     });
 
-    // Send reset instructions
+    // Send reset instructions with raw token
     sendMail({
       to: user.email,
       subject: "Password Reset Request - ScamShield",
-      text: `You requested a password reset. Please use the following token to reset your password: ${resetToken}`,
-      html: `<p>You requested a password reset.</p><p>Please reset your password using this token: <strong>${resetToken}</strong></p>`,
+      text: `You requested a password reset. Please use the following token to reset your password: ${rawResetToken}`,
+      html: `<p>You requested a password reset.</p><p>Please reset your password using this token: <strong>${rawResetToken}</strong></p>`,
     });
 
     return res.json({ message: "If that email exists, reset instructions have been sent." });
@@ -272,9 +352,10 @@ export async function resetPassword(req: Request, res: Response) {
   }
 
   try {
+    const hashedToken = hashToken(token);
     const user = await prisma.user.findFirst({
       where: {
-        passwordResetToken: token,
+        passwordResetToken: hashedToken,
         passwordResetExpires: { gte: new Date() },
       },
     });
