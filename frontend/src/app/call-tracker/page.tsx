@@ -358,6 +358,7 @@ export default function CallTrackerPage() {
   const [selectedScenario, setSelectedScenario] = useState<Scenario>(DEFAULT_SCENARIOS[0]);
   const [callState, setCallState] = useState<"IDLE" | "RINGING" | "ACTIVE">("IDLE");
   const [localIp, setLocalIp] = useState("localhost");
+  const [customIp, setCustomIp] = useState("");
   const [pairingUrl, setPairingUrl] = useState("");
   const [laptopCoords, setLaptopCoords] = useState<{ lat: number; lng: number }>({
     lat: 11.5564,
@@ -413,15 +414,16 @@ export default function CallTrackerPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const activeIp = customIp || localIp;
       const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-      const targetUrl = isLocal && localIp && localIp !== "localhost"
-        ? `http://${localIp}:3000/call-tracker/pair`
+      const targetUrl = isLocal && activeIp && activeIp !== "localhost"
+        ? `http://${activeIp}:3000/call-tracker/pair`
         : `${window.location.origin}/call-tracker/pair`;
       setTimeout(() => {
         setPairingUrl(targetUrl);
       }, 0);
     }
-  }, [localIp]);
+  }, [localIp, customIp]);
 
   const [activeToken, setActiveToken] = useState<string | null>(null);
   const activeTokenRef = useRef<string | null>(null);
@@ -1188,6 +1190,18 @@ export default function CallTrackerPage() {
                   </div>
                   <div className="w-full font-mono text-[9px] text-slate-500 bg-black/30 px-2.5 py-1.5 rounded-lg border border-white/5 truncate" title={getPairingUrl()}>
                     {getPairingUrl() || "Generating pairing URL..."}
+                  </div>
+                  <div className="w-full text-left space-y-1">
+                    <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                      {language === "kh" ? "បញ្ចូល IP របស់កុំព្យូទ័រ (ឧទាហរណ៍ 192.168.1.10)" : "Laptop Wi-Fi IP (e.g. 192.168.1.10)"}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 192.168.1.123"
+                      value={customIp}
+                      onChange={(e) => setCustomIp(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs rounded-xl bg-slate-900 border border-slate-800 text-slate-300 focus:outline-none focus:border-red-500 font-mono"
+                    />
                   </div>
                   <div className="w-full flex items-center gap-1.5 justify-center text-[10px] text-slate-500">
                     <Wifi className="h-3 w-3 text-emerald-400" />
