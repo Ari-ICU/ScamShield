@@ -1,10 +1,11 @@
 version: '3.8'
 
 services:
+  # ── Database ─────────────────────────────────────────────────────────────────
   db:
     image: postgres:15-alpine
     container_name: scamshield_db
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password123
@@ -13,25 +14,40 @@ services:
       - "5435:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d scamshield"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
+  # ── Cache / Queue broker ──────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: scamshield_redis
-    restart: always
+    restart: unless-stopped
     ports:
       - "6385:6379"
     volumes:
       - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ── Express API ───────────────────────────────────────────────────────────────
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: scamshield_backend
-    restart: always
+    restart: unless-stopped
     ports:
       - "4000:4000"
-    command: sh -c "sleep 5 && npx prisma db push --accept-data-loss && node dist/app.js"
+    # Run Prisma migration first, then start the server
+    command: >
+      sh -c "npx prisma db push --accept-data-loss && node dist/app.js"
     environment:
       - NODE_ENV=production
       - PORT=4000
@@ -40,11 +56,20 @@ services:
       - JWT_SECRET=supersecretjwtsigningtokenkey123!
       - FRONTEND_URL=http://localhost
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend/uploads:/usr/src/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/api/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
+  # ── Next.js Frontend ──────────────────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend
@@ -53,7 +78,7 @@ services:
         - NEXT_PUBLIC_API_URL=/api
         - NEXT_PUBLIC_SOCKET_URL=/
     container_name: scamshield_frontend
-    restart: always
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
@@ -61,12 +86,14 @@ services:
       - NEXT_PUBLIC_API_URL=/api
       - NEXT_PUBLIC_SOCKET_URL=/
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
+  # ── Nginx reverse proxy ───────────────────────────────────────────────────────
   nginx:
     image: nginx:alpine
     container_name: scamshield_nginx
-    restart: always
+    restart: unless-stopped
     ports:
       - "80:80"
     volumes:

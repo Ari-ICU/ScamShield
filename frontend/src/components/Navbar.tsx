@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { useToast } from "@/context/ToastContext";
 import {
   ShieldAlert,
   LogIn,
@@ -27,6 +28,7 @@ import { SOCKET_URL } from "@/lib/api";
 export default function Navbar() {
   const { user, logout, apiFetch } = useAuth();
   const { language, setLanguage, t } = useLanguage();
+  const { showToast } = useToast();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -46,14 +48,41 @@ export default function Navbar() {
     const socket = io(SOCKET_URL);
     socket.emit("join_user", user.id);
 
+    // In-app notification → dropdown + toast
     socket.on("notification", (notif) => {
       setNotifications((prev) => [notif, ...prev]);
+      showToast({
+        type: notif.type === "WATCHLIST_UPDATE" ? "danger" : "info",
+        title: notif.title ?? "New Notification",
+        message: notif.message ?? "",
+        duration: 6000,
+      });
+    });
+
+    // Live community feed — new scam report broadcast
+    socket.on("new_report", (report) => {
+      showToast({
+        type: "warning",
+        title: `⚠️ New Scam Report: ${report.category?.replace(/_/g, " ")}`,
+        message: `${report.number} — Risk ${report.riskScore ?? 0}%${report.province ? ` · ${report.province}` : ""}`,
+        duration: 7000,
+      });
+    });
+
+    // Risk threshold exceeded broadcast
+    socket.on("risk_alert", (alert) => {
+      showToast({
+        type: "danger",
+        title: `🚨 High-Risk Number Detected`,
+        message: `${alert.number} has reached a risk score of ${alert.riskScore}% with ${alert.totalReports} report(s).`,
+        duration: 8000,
+      });
     });
 
     return () => {
       socket.disconnect();
     };
-  }, [user]);
+  }, [user, showToast]);
 
   const handleMarkAllRead = async () => {
     try {

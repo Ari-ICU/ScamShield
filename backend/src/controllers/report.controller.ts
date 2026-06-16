@@ -141,7 +141,7 @@ export async function createReport(req: AuthenticatedRequest, res: Response) {
 
     // Mask user details for socket payload
     const maskedEmail = req.user?.email
-      ? req.user.email.replace(/(.{2})(.*)(?=@)/, (_, a, b) => a + "*".repeat(b.length))
+      ? req.user.email.replace(/(.{2})(.*)(?=@)/, (_: string, a: string, b: string) => a + "*".repeat(b.length))
       : "Anonymous";
 
     const socketPayload = {
@@ -205,9 +205,9 @@ export async function getRecentReports(req: AuthenticatedRequest, res: Response)
     });
 
     // Format reports, masking emails
-    const formatted = reports.map((r) => {
+    const formatted = reports.map((r: any) => {
       const email = r.user.email;
-      const maskedEmail = email.replace(/(.{2})(.*)(?=@)/, (_, a, b) => a + "*".repeat(b.length));
+      const maskedEmail = email.replace(/(.{2})(.*)(?=@)/, (_: string, a: string, b: string) => a + "*".repeat(b.length));
       return {
         id: r.id,
         number: r.phoneNumber.number,

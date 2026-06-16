@@ -228,7 +228,7 @@ export async function searchNumber(req: Request, res: Response) {
     // 3. Recalculate Detailed Risk Score dynamically
     const { calculateDetailedRiskScore } = await import("../services/riskEngine.js");
     
-    const reportInputs = dbNum.reports.map((r) => ({
+    const reportInputs = dbNum.reports.map((r: any) => ({
       createdAt: r.createdAt,
       status: r.status as any,
       evidenceCount: r.evidence.length,
@@ -274,7 +274,7 @@ export async function searchNumber(req: Request, res: Response) {
 
     // 4. Extract Common Scam Category
     const categoryCounts: Record<string, number> = {};
-    dbNum.reports.forEach((r) => {
+    dbNum.reports.forEach((r: any) => {
       categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1;
     });
 
@@ -292,8 +292,8 @@ export async function searchNumber(req: Request, res: Response) {
     let audio = 0;
     let documents = 0;
 
-    dbNum.reports.forEach((r) => {
-      r.evidence.forEach((ev) => {
+    dbNum.reports.forEach((r: any) => {
+      r.evidence.forEach((ev: any) => {
         const type = ev.fileType.toLowerCase();
         if (type.includes("image") || type.includes("png") || type.includes("jpeg")) {
           screenshots++;
@@ -329,9 +329,9 @@ export async function searchNumber(req: Request, res: Response) {
       const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59);
 
       // Filter reports created before or on the end of this month
-      const reportsBefore = dbNum.reports.filter((r) => new Date(r.createdAt) <= endOfMonth);
+      const reportsBefore = dbNum.reports.filter((r: any) => new Date(r.createdAt) <= endOfMonth);
 
-      const inputs = reportsBefore.map((r) => ({
+      const inputs = reportsBefore.map((r: any) => ({
         createdAt: r.createdAt,
         status: r.status as any,
         evidenceCount: r.evidence.length,
@@ -362,7 +362,7 @@ export async function searchNumber(req: Request, res: Response) {
       riskScore: dbNum.riskScore,
       riskLevel,
       totalReports: dbNum.totalReport,
-      reports: dbNum.reports.map((r) => ({
+      reports: dbNum.reports.map((r: any) => ({
         id: r.id,
         category: r.category,
         description: r.description,
@@ -449,7 +449,7 @@ export async function lookupNumber(req: Request, res: Response) {
 
     // Calculate detailed risk score
     const { calculateDetailedRiskScore } = await import("../services/riskEngine.js");
-    const reportInputs = dbNum.reports.map((r) => ({
+    const reportInputs = dbNum.reports.map((r: any) => ({
       createdAt: r.createdAt,
       status: r.status as any,
       evidenceCount: r.evidence.length,
@@ -473,7 +473,7 @@ export async function lookupNumber(req: Request, res: Response) {
 
     // Extract common scam type
     const categoryCounts: Record<string, number> = {};
-    dbNum.reports.forEach((r) => {
+    dbNum.reports.forEach((r: any) => {
       categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1;
     });
 

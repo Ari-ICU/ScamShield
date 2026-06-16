@@ -150,9 +150,11 @@ export async function resolveAppeal(req: AuthenticatedRequest, res: Response) {
       logger.info(`Appeal approved for number ${appeal.phoneNumber.number}. All reports set to REJECTED.`);
     }
 
-    // Invalidate search cache
+    // Invalidate all related caches
     const { delCache } = await import("../utils/redis.js");
     await delCache(`cache:number:${appeal.phoneNumber.number}`);
+    await delCache(`cache:lookup:${appeal.phoneNumber.number}`);
+    await delCache(`cache:dashboard:stats`);
 
     // Check if the appeal email is associated with a registered User and notify them
     const registeredUser = await prisma.user.findUnique({

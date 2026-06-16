@@ -95,6 +95,10 @@ router.get("/admin/appeals", authenticateJWT, requireAdmin, appealController.get
 router.patch("/admin/appeals/:id", authenticateJWT, requireAdmin, appealController.resolveAppeal);
 router.get("/admin/audit-logs", authenticateJWT, requireAdmin, adminController.getAuditLogs);
 
+// API Documentation routes
+import swaggerRouter from "./swagger.js";
+router.use(swaggerRouter);
+
 export default router;
 
 

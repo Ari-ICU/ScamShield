@@ -1,0 +1,242 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ScamShield Cambodia API",
+    "version": "1.0.0",
+    "description": "API documentation for the ScamShield Cambodia trust registry and scam reporting network."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000",
+      "description": "Development Server"
+    }
+  ],
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "summary": "Register a new user",
+        "description": "Creates a new user account on ScamShield.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "user@example.com" },
+                  "password": { "type": "string", "minLength": 8, "example": "password123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string", "format": "uuid" },
+                        "email": { "type": "string" },
+                        "role": { "type": "string" }
+                      }
+                    },
+                    "accessToken": { "type": "string" },
+                    "refreshToken": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid input or user already exists" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "summary": "Login to ScamShield",
+        "description": "Authenticates user credentials and returns tokens.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "user@example.com" },
+                  "password": { "type": "string", "example": "password123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "email": { "type": "string" },
+                        "role": { "type": "string" }
+                      }
+                    },
+                    "accessToken": { "type": "string" },
+                    "refreshToken": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/api/numbers/search/{phone}": {
+      "get": {
+        "summary": "Look up a phone number",
+        "description": "Searches the registry for risk records, historical metrics, and reporting details.",
+        "parameters": [
+          {
+            "name": "phone",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "+85512345678" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Phone number status data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "number": { "type": "string" },
+                    "riskScore": { "type": "integer" },
+                    "riskLevel": { "type": "string", "enum": ["SAFE", "SUSPICIOUS", "HIGH_RISK"] },
+                    "totalReports": { "type": "integer" },
+                    "carrier": { "type": "string" },
+                    "country": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports": {
+      "post": {
+        "summary": "Submit a scam report",
+        "description": "Creates a new incident report for a phone number.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["number", "category"],
+                "properties": {
+                  "number": { "type": "string", "example": "+85512345678" },
+                  "category": { "type": "string", "enum": ["BANK_FRAUD", "FAKE_DELIVERY", "INVESTMENT", "LOTTERY", "GOVERNMENT", "ROMANCE", "TECH_SUPPORT", "OTHER"] },
+                  "description": { "type": "string", "example": "Fake banker request." },
+                  "province": { "type": "string", "example": "Phnom Penh" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Report submitted successfully" },
+          "400": { "description": "Invalid input fields" },
+          "401": { "description": "Unauthorized access token" }
+        }
+      },
+      "get": {
+        "summary": "Get recent scam reports",
+        "description": "Lists the 20 most recent community-submitted reports (emails are masked).",
+        "responses": {
+          "200": {
+            "description": "List of recent reports retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "number": { "type": "string" },
+                      "category": { "type": "string" },
+                      "reporter": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/appeals": {
+      "post": {
+        "summary": "Submit an appeal",
+        "description": "Allows owners of flagged numbers to request reviews.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["number", "reason", "contactEmail"],
+                "properties": {
+                  "number": { "type": "string", "example": "+85512345678" },
+                  "reason": { "type": "string", "example": "This is a legitimate delivery service line." },
+                  "contactEmail": { "type": "string", "format": "email", "example": "owner@deliveries.com" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Appeal submitted successfully" },
+          "404": { "description": "Phone number not found in registry" }
+        }
+      }
+    },
+    "/api/dashboard/stats": {
+      "get": {
+        "summary": "Get dashboard statistics",
+        "description": "Aggregates telemetry, hotspot province maps, and categories.",
+        "responses": {
+          "200": {
+            "description": "Dashboard statistics retrieved successfully"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

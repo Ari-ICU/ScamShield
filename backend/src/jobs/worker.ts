@@ -69,7 +69,7 @@ export async function recalculatePhoneNumberRisk(numberId: string): Promise<numb
 
   const totalReport = reports.length;
 
-  const reportInputs: ReportInput[] = reports.map((r) => ({
+  const reportInputs: ReportInput[] = reports.map((r: any) => ({
     createdAt: r.createdAt,
     status: r.status as any,
     evidenceCount: r.evidence.length,
@@ -92,8 +92,10 @@ export async function recalculatePhoneNumberRisk(numberId: string): Promise<numb
     },
   });
 
-  // Invalidate search cache
+  // Invalidate search, lookup, and dashboard stats caches
   await delCache(`cache:number:${phoneNumber.number}`);
+  await delCache(`cache:lookup:${phoneNumber.number}`);
+  await delCache(`cache:dashboard:stats`);
 
   logger.info(`🔄 [Job Engine] Recalculated risk for ${phoneNumber.number}: ${newRiskScore}%`);
   return newRiskScore;
@@ -152,7 +154,7 @@ const worker = new Worker(
           by: ["category"],
           _count: { id: true },
         });
-        const categoryDistribution = categoryGroup.map((g) => ({
+        const categoryDistribution = categoryGroup.map((g: any) => ({
           category: g.category,
           count: g._count.id,
         }));
@@ -161,7 +163,7 @@ const worker = new Worker(
           by: ["countryCode"],
           _count: { id: true },
         });
-        const countryDistribution = countryGroup.map((g) => ({
+        const countryDistribution = countryGroup.map((g: any) => ({
           countryCode: g.countryCode || "UNKNOWN",
           count: g._count.id,
         }));
@@ -172,12 +174,12 @@ const worker = new Worker(
           _count: { id: true },
         });
         const provinceDistribution = provinceGroup
-          .filter((g) => g.province && g.province.trim() !== "")
-          .map((g) => ({
+          .filter((g: any) => g.province && g.province.trim() !== "")
+          .map((g: any) => ({
             province: g.province as string,
             count: g._count.id,
           }))
-          .sort((a, b) => b.count - a.count);
+          .sort((a: any, b: any) => b.count - a.count);
 
         const highestRiskNumbers = await prisma.phoneNumber.findMany({
           orderBy: { riskScore: "desc" },

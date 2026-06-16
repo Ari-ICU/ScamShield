@@ -75,6 +75,8 @@ model PhoneNumber {
   updatedAt   DateTime    @updatedAt
 
   @@index([number])
+  @@index([riskScore])
+  @@index([createdAt])
 }
 
 model Report {
@@ -95,6 +97,8 @@ model Report {
 
   @@index([userId])
   @@index([numberId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Evidence {

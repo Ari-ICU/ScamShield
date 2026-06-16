@@ -74,8 +74,10 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 
 const PORT = process.env.PORT || 4000;
 
-httpServer.listen(PORT, () => {
-  logger.info(`🚀 ScamShield Cambodia API ready on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== "test") {
+  httpServer.listen(PORT, () => {
+    logger.info(`🚀 ScamShield Cambodia API ready on port ${PORT}`);
+  });
+}
 
 export default app;

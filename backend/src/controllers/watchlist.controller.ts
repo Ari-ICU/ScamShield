@@ -31,7 +31,7 @@ export async function getWatchlist(req: AuthenticatedRequest, res: Response) {
       orderBy: { createdAt: "desc" },
     });
 
-    const formatted = list.map((item) => {
+    const formatted = list.map((item: any) => {
       const p = item.phoneNumber;
       const lastReport = p.reports[0] || null;
       return {

@@ -2,11 +2,10 @@ import { Request, Response } from "express";
 
 
 import prisma from "../prisma/prismaClient.js";
-import { calculateRiskScore } from "../services/riskEngine.js";
 import logger from "../utils/logger.js";
 import { logAdminAction } from "../utils/auditLogger.js";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
-import { ReportStatus, Role } from "@prisma/client";
+import { Role } from "@prisma/client";
 import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
 import { calculateReputationScore, getVerificationLevel } from "../utils/reputation.js";
 
@@ -44,7 +43,7 @@ export async function getStats(req: Request, res: Response) {
       },
     });
 
-    const categoryDistribution = categoryGroup.map((g) => ({
+    const categoryDistribution = categoryGroup.map((g: any) => ({
       category: g.category,
       count: g._count.id,
     }));
@@ -57,7 +56,7 @@ export async function getStats(req: Request, res: Response) {
       },
     });
 
-    const countryDistribution = countryGroup.map((g) => ({
+    const countryDistribution = countryGroup.map((g: any) => ({
       countryCode: g.countryCode || "UNKNOWN",
       count: g._count.id,
     }));
@@ -76,12 +75,12 @@ export async function getStats(req: Request, res: Response) {
     });
 
     const provinceDistribution = provinceGroup
-      .filter((g) => g.province && g.province.trim() !== "")
-      .map((g) => ({
+      .filter((g: any) => g.province && g.province.trim() !== "")
+      .map((g: any) => ({
         province: g.province as string,
         count: g._count.id,
       }))
-      .sort((a, b) => b.count - a.count);
+      .sort((a: any, b: any) => b.count - a.count);
 
     // Highest risk numbers
     const highestRiskNumbers = await prisma.phoneNumber.findMany({
@@ -179,8 +178,8 @@ export async function updateReport(req: AuthenticatedRequest, res: Response) {
           select: { status: true },
         });
 
-        const approvedReports = allReports.filter((r) => r.status === "CONFIRMED_SCAM").length;
-        const rejectedReports = allReports.filter((r) => r.status === "FALSE_REPORT").length;
+        const approvedReports = allReports.filter((r: any) => r.status === "CONFIRMED_SCAM").length;
+        const rejectedReports = allReports.filter((r: any) => r.status === "FALSE_REPORT").length;
 
         const newScore = calculateReputationScore(approvedReports, rejectedReports);
         const newLevel = getVerificationLevel(newScore, reporter.role);
@@ -383,7 +382,7 @@ export async function deleteUser(req: AuthenticatedRequest, res: Response) {
       where: { userId: id },
       select: { numberId: true },
     });
-    const uniqueNumberIds = Array.from(new Set(userReports.map((r) => r.numberId)));
+    const uniqueNumberIds: string[] = Array.from(new Set(userReports.map((r: any) => r.numberId as string)));
 
     await prisma.user.delete({ where: { id } });
 
@@ -442,6 +441,12 @@ export async function deleteNumber(req: AuthenticatedRequest, res: Response) {
 
     await prisma.phoneNumber.delete({ where: { id } });
 
+    // Invalidate caches
+    const { delCache } = await import("../utils/redis.js");
+    await delCache(`cache:number:${phoneNumber.number}`);
+    await delCache(`cache:lookup:${phoneNumber.number}`);
+    await delCache(`cache:dashboard:stats`);
+
     // Log admin action
     await logAdminAction(adminId, "DELETE_PHONE_NUMBER", "PhoneNumber", id, {
       number: phoneNumber.number,
@@ -491,6 +496,12 @@ export async function createNumber(req: AuthenticatedRequest, res: Response) {
       },
     });
 
+    // Invalidate caches
+    const { delCache } = await import("../utils/redis.js");
+    await delCache(`cache:number:${cleanNumber}`);
+    await delCache(`cache:lookup:${cleanNumber}`);
+    await delCache(`cache:dashboard:stats`);
+
     // Log admin action
     await logAdminAction(adminId, "CREATE_PHONE_NUMBER", "PhoneNumber", newNumber.id, {
       number: cleanNumber,
@@ -538,9 +549,9 @@ export async function getAuditLogs(req: AuthenticatedRequest, res: Response) {
       select: { id: true, email: true },
     });
 
-    const emailMap = new Map(admins.map((a) => [a.id, a.email]));
+    const emailMap = new Map(admins.map((a: any) => [a.id, a.email]));
 
-    const formattedLogs = logs.map((log) => ({
+    const formattedLogs = logs.map((log: any) => ({
       ...log,
       adminEmail: emailMap.get(log.adminId) || "Unknown Admin",
     }));
