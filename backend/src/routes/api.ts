@@ -48,8 +48,6 @@ router.get("/numbers/search/:phone", numberController.searchNumber);
 router.post("/calls/detect", callsSecretGuard, numberController.detectCall);
 router.post("/calls/twilio", numberController.detectTwilioCall);
 router.get("/network-ip", numberController.getLocalIp);
-router.get("/calls/download-macrodroid", numberController.downloadMacroDroid);
-router.get("/calls/download-tasker", numberController.downloadTasker);
 router.get("/calls/active", numberController.getActiveCall);
 router.post("/calls/active/answer", numberController.answerActiveCall);
 router.post("/calls/active/hangup", numberController.hangupActiveCall);

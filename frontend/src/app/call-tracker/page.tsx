@@ -77,15 +77,159 @@ const CAMBODIA_PROVINCES: { nameEn: string; nameKh: string; lat: number; lng: nu
   { nameEn: "tboung khmum", nameKh: "ត្បូងឃ្មុំ", lat: 11.9333, lng: 105.6500 },
 ];
 
+const isPhnomPenh = (province?: string): boolean => {
+  const p = (province || "").toLowerCase().replace(/\s+/g, "");
+  return p.includes("phnompenh") || p.includes("ភ្នំពេញ");
+};
+
+const cleanProvince = (p?: string): string => {
+  if (!p) return "";
+  const pl = p.toLowerCase().trim();
+  if (
+    pl === "gps cellular lock" ||
+    pl === "carrier network (estimated)" ||
+    pl === "cambodia (national mobile range)" ||
+    pl === "cambodia" ||
+    pl === "ប្រទេសកម្ពុជា" ||
+    pl === "ប្រទេសកម្ពុជា (ប្រព័ន្ធទូរស័ព្ទជាតិ)"
+  ) {
+    return "";
+  }
+  return p;
+};
+
+const formatLocationEn = (
+  province?: string,
+  district?: string,
+  commune?: string,
+  village?: string
+): string => {
+  const provClean = cleanProvince(province);
+  const distClean = (district || "").trim();
+  const commClean = (commune || "").trim();
+  const villClean = (village || "").trim();
+
+  if (!provClean && !distClean && !commClean && !villClean) {
+    return "Cambodia (National Mobile Range)";
+  }
+
+  const parts: string[] = [];
+  if (villClean) {
+    const cleanPrefixRegex = new RegExp(`^phum\\s+`, "i");
+    const displayVill = villClean.replace(cleanPrefixRegex, "");
+    parts.push(`Phum ${displayVill}`);
+  }
+
+  const isPp = isPhnomPenh(provClean);
+
+  if (commClean) {
+    const prefix = isPp ? "Sangkat" : "Khum";
+    const cleanPrefixRegex = new RegExp(`^(sangkat|khum)\\s+`, "i");
+    const displayComm = commClean.replace(cleanPrefixRegex, "");
+    parts.push(`${prefix} ${displayComm}`);
+  }
+
+  if (distClean) {
+    const prefix = isPp ? "Khan" : "Srok";
+    const cleanPrefixRegex = new RegExp(`^(khan|srok)\\s+`, "i");
+    const displayDist = distClean.replace(cleanPrefixRegex, "");
+    parts.push(`${prefix} ${displayDist}`);
+  }
+
+  if (provClean) {
+    if (isPp) {
+      parts.push("Phnom Penh Capital City");
+    } else {
+      const cleanPrefixRegex = new RegExp(`\\s+province$`, "i");
+      const displayProv = provClean.replace(cleanPrefixRegex, "");
+      parts.push(`${displayProv} Province`);
+    }
+  }
+
+  return parts.join(", ");
+};
+
+const formatLocationKh = (
+  province?: string,
+  district?: string,
+  commune?: string,
+  village?: string
+): string => {
+  const provClean = cleanProvince(province);
+  const distClean = (district || "").trim();
+  const commClean = (commune || "").trim();
+  const villClean = (village || "").trim();
+
+  if (!provClean && !distClean && !commClean && !villClean) {
+    return "ប្រទេសកម្ពុជា (ប្រព័ន្ធទូរស័ព្ទជាតិ)";
+  }
+
+  const parts: string[] = [];
+  if (villClean) {
+    const displayVill = villClean.replace(/^ភូមិ/, "").trim();
+    parts.push(`ភូមិ${displayVill}`);
+  }
+
+  const isPp = isPhnomPenh(provClean);
+
+  if (commClean) {
+    const prefix = isPp ? "សង្កាត់" : "ឃុំ";
+    const displayComm = commClean.replace(/^(សង្កាត់|ឃុំ)/, "").trim();
+    parts.push(`${prefix}${displayComm}`);
+  }
+
+  if (distClean) {
+    const prefix = isPp ? "ខណ្ឌ" : "ស្រុក";
+    const displayDist = distClean.replace(/^(ខណ្ឌ|ស្រុក)/, "").trim();
+    parts.push(`${prefix}${displayDist}`);
+  }
+
+  if (provClean) {
+    if (isPp) {
+      parts.push("រាជធានីភ្នំពេញ");
+    } else {
+      const displayProv = provClean.replace(/^ខេត្ត/, "").trim();
+      parts.push(`ខេត្ត${displayProv}`);
+    }
+  }
+
+  return parts.join(" ");
+};
+
 const getDeterministicCoordinates = (
   province: string,
   district?: string,
   commune?: string,
   village?: string
 ): { lat: number; lng: number; source: string } => {
-  const p = (province || "").toLowerCase().trim();
+  const p = (province || "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/province/g, "")
+    .replace(/city/g, "")
+    .replace(/khon/g, "")
+    .replace(/srok/g, "")
+    .replace(/sangkat/g, "")
+    .replace(/khum/g, "")
+    .replace(/phum/g, "")
+    .replace(/ខេត្ត/g, "")
+    .replace(/រាជធានី/g, "")
+    .replace(/ស្រុក/g, "")
+    .replace(/ខណ្ឌ/g, "")
+    .replace(/សង្កាត់/g, "")
+    .replace(/ឃុំ/g, "")
+    .replace(/ភូមិ/g, "")
+    .trim();
   
-  if (!p) {
+  if (
+    !p ||
+    p === "gpscellularlock" ||
+    p === "carriernetwork(estimated)" ||
+    p === "cambodianationalmobilerange" ||
+    p === "cambodia" ||
+    p === "ប្រទេសកម្ពុជា" ||
+    p === "ប្រទេសកម្ពុជា(ប្រព័ន្ធទូរស័ព្ទជាតិ)"
+  ) {
     return { lat: 11.5564, lng: 104.9282, source: "Carrier Network (Estimated)" };
   }
 
@@ -131,9 +275,11 @@ const getDeterministicCoordinates = (
   }
 
   // Check standard provinces
-  const matched = CAMBODIA_PROVINCES.find(
-    (prov) => p.includes(prov.nameEn) || p.includes(prov.nameKh)
-  );
+  const matched = CAMBODIA_PROVINCES.find((prov) => {
+    const cleanEn = prov.nameEn.toLowerCase().replace(/\s+/g, "");
+    const cleanKh = prov.nameKh.replace(/\s+/g, "");
+    return p.includes(cleanEn) || p.includes(cleanKh) || cleanEn.includes(p) || cleanKh.includes(p);
+  });
 
   if (matched) {
     return addOffset(matched.lat, matched.lng, district, commune, village);
@@ -213,6 +359,39 @@ export default function CallTrackerPage() {
   const [callState, setCallState] = useState<"IDLE" | "RINGING" | "ACTIVE">("IDLE");
   const [localIp, setLocalIp] = useState("localhost");
   const [pairingUrl, setPairingUrl] = useState("");
+  const [laptopCoords, setLaptopCoords] = useState<{ lat: number; lng: number }>({
+    lat: 11.5564,
+    lng: 104.9282,
+  });
+
+  useEffect(() => {
+    // Attempt dynamic IP-based location of the laptop silently
+    fetch("https://ipapi.co/json/")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data.latitude === "number" && typeof data.longitude === "number") {
+          setTimeout(() => {
+            setLaptopCoords({ lat: data.latitude, lng: data.longitude });
+          }, 0);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to fetch IP location of laptop, falling back to browser geolocation:", err);
+        if (typeof window !== "undefined" && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              setTimeout(() => {
+                setLaptopCoords({
+                  lat: position.coords.latitude,
+                  lng: position.coords.longitude,
+                });
+              }, 0);
+            },
+            () => {}
+          );
+        }
+      });
+  }, []);
 
   const callStateRef = useRef(callState);
   const selectedScenarioRef = useRef(selectedScenario);
@@ -235,11 +414,12 @@ export default function CallTrackerPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-      if (isLocal && localIp && localIp !== "localhost") {
-        setPairingUrl(`http://${localIp}:3000/call-tracker/pair`);
-      } else {
-        setPairingUrl(`${window.location.origin}/call-tracker/pair`);
-      }
+      const targetUrl = isLocal && localIp && localIp !== "localhost"
+        ? `http://${localIp}:3000/call-tracker/pair`
+        : `${window.location.origin}/call-tracker/pair`;
+      setTimeout(() => {
+        setPairingUrl(targetUrl);
+      }, 0);
     }
   }, [localIp]);
 
@@ -335,11 +515,6 @@ export default function CallTrackerPage() {
     });
   };
 
-  const startSimulation = () => {
-    clearAllTimers();
-    resetCallState();
-    setCallState("RINGING");
-  };
 
   const formatTimer = (seconds: number) => {
     const min = Math.floor(seconds / 60);
@@ -369,20 +544,25 @@ export default function CallTrackerPage() {
   // Note: Desktop browser geolocation removed — it only returns ISP/carrier IP location
   // (always Phnom Penh in Cambodia), not the user's real GPS. Use Pair page on mobile for real GPS.
 
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
-    return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1);
-  };
+  interface ReportData {
+    id: string | number;
+    number: string;
+    category: string;
+    riskScore: number;
+    province?: string;
+    district?: string;
+    commune?: string;
+    village?: string;
+    description?: string;
+    countryCode?: string;
+  }
 
-  const mapReportToScenario = (report: any): Scenario => {
+  const mapReportToScenario = (report: ReportData): Scenario => {
     const province = report.province || "";
     const coords = getDeterministicCoordinates(province, report.district, report.commune, report.village);
     
-    const fullLocEn = [report.village && `Phum ${report.village}`, report.commune && `Sangkat ${report.commune}`, report.district && `Khan ${report.district}`, report.province && `${report.province} Province`].filter(Boolean).join(", ") || "Cambodia (National Mobile Range)";
-    const fullLocKh = [report.province && `ខេត្ត/ក្រុង${report.province}`, report.district && `ស្រុក/ខណ្ឌ${report.district}`, report.commune && `ឃុំ/សង្កាត់${report.commune}`, report.village && `ភូមិ${report.village}`].filter(Boolean).join(", ") || "ប្រទេសកម្ពុជា (ប្រព័ន្ធទូរស័ព្ទជាតិ)";
+    const fullLocEn = formatLocationEn(report.province, report.district, report.commune, report.village);
+    const fullLocKh = formatLocationKh(report.province, report.district, report.commune, report.village);
     const desc = report.description || "";
     const transcriptsEn = [`Incoming connection established from reported caller database.`, `Verified Scam Profile matches report category: ${report.category.replace(/_/g, " ")}.`];
     const transcriptsKh = [`បានបង្កើតការតភ្ជាប់ជាមួយលេខទូរស័ព្ទឆបោកក្នុងប្រព័ន្ធ។`, `ប្រវត្តិសាវតារសង្ស័យត្រូវនឹងប្រភេទ៖ ${t(report.category) || formatCategory(report.category)}។`];
@@ -439,7 +619,7 @@ export default function CallTrackerPage() {
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
-          const dynamicScenarios = data.map((report: any) => mapReportToScenario(report));
+          const dynamicScenarios = data.map((report: ReportData) => mapReportToScenario(report));
           const seen = new Set();
           const uniqueNumbers: Scenario[] = [];
           for (const item of dynamicScenarios) { if (!seen.has(item.number)) { seen.add(item.number); uniqueNumbers.push(item); } }
@@ -482,6 +662,25 @@ export default function CallTrackerPage() {
           transcriptsEn.push(`Do NOT share OTPs, transfers, or sensitive bank details.`);
           transcriptsKh.push(`ដាច់ខាតកុំផ្តល់លេខសម្ងាត់ OTP ឬផ្ទេរប្រាក់ឱ្យសោះ។`);
 
+          let finalLat = ac.lat;
+          let finalLng = ac.lng;
+          let finalSource = ac.locationSource;
+
+          if (!finalLat || !finalLng) {
+            const coords = getDeterministicCoordinates(
+              ac.province || ac.location,
+              ac.district,
+              ac.commune,
+              ac.village
+            );
+            finalLat = coords.lat;
+            finalLng = coords.lng;
+            finalSource = coords.source;
+          }
+
+          const locationEn = formatLocationEn(ac.province || ac.location, ac.district, ac.commune, ac.village);
+          const locationKh = formatLocationKh(ac.province || ac.location, ac.district, ac.commune, ac.village);
+
           const reconstructedScenario: Scenario = {
             id: `active-${ac.number}`,
             nameEn: ac.riskScore > 0 ? `Real Case: ${ac.riskScore}% Risk` : "Unknown GSM Caller",
@@ -489,12 +688,12 @@ export default function CallTrackerPage() {
             number: ac.number,
             category: ac.category || "OTHER",
             riskScore: ac.riskScore,
-            locationEn: ac.location || "Cambodia (National Mobile Range)",
-            locationKh: ac.location || "ប្រទេសកម្ពុជា",
-            lat: ac.lat || 11.5564,
-            lng: ac.lng || 104.9282,
+            locationEn,
+            locationKh,
+            lat: finalLat || 11.5564,
+            lng: finalLng || 104.9282,
             provider: ac.carrier || "Carrier Operator",
-            locationSource: ac.locationSource || (ac.lat && ac.lng ? "GPS Cellular Lock" : "Carrier Network (Estimated)"),
+            locationSource: finalSource || (ac.lat && ac.lng ? "GPS Cellular Lock" : "Carrier Network (Estimated)"),
             transcriptsEn,
             transcriptsKh
           };
@@ -521,20 +720,34 @@ export default function CallTrackerPage() {
       })
       .catch((err) => console.error("Error fetching active call state:", err));
 
+    interface IncomingCallData {
+      number: string;
+      category?: string;
+      riskScore: number;
+      carrier?: string;
+      location?: string;
+      province?: string;
+      district?: string;
+      commune?: string;
+      village?: string;
+      lat?: number;
+      lng?: number;
+      locationSource?: string;
+      pairingToken?: string;
+      description?: string;
+    }
+
     const socket: Socket = io(SOCKET_URL);
     
-    socket.on("incoming_call", (data: any) => {
-      const fullLocEn = [data.village && `Phum ${data.village}`, data.commune && `Sangkat ${data.commune}`, data.district && `Khan ${data.district}`, data.province && `${data.province} Province`].filter(Boolean).join(", ") || data.location || "Cambodia (National Mobile Range)";
-      const fullLocKh = [data.province && `ខេត្ត/ក្រុង${data.province}`, data.district && `ស្រុក/ខណ្ឌ${data.district}`, data.commune && `ឃុំ/សង្កាត់${data.commune}`, data.village && `ភូមិ${data.village}`].filter(Boolean).join(", ") || data.location || "ប្រទេសកម្ពុជា";
-      
+    socket.on("incoming_call", (data: IncomingCallData) => {
       // Determine coordinates - support payload direct coordinates or use geocoding
       let finalLat = data.lat;
       let finalLng = data.lng;
-      let finalSource = data.locationSource || "GPS Cellular Lock";
+      let finalSource = data.locationSource;
 
       if (!finalLat || !finalLng) {
         const coords = getDeterministicCoordinates(
-          data.province || data.location,
+          data.province || data.location || "",
           data.district,
           data.commune,
           data.village
@@ -543,6 +756,9 @@ export default function CallTrackerPage() {
         finalLng = coords.lng;
         finalSource = coords.source;
       }
+
+      const fullLocEn = formatLocationEn(data.province || data.location || "", data.district, data.commune, data.village);
+      const fullLocKh = formatLocationKh(data.province || data.location || "", data.district, data.commune, data.village);
 
       if (data.pairingToken) {
         setActiveToken(data.pairingToken);
@@ -622,7 +838,7 @@ export default function CallTrackerPage() {
       setCallState("RINGING");
     });
 
-    socket.on("answer_call", (data: any) => {
+    socket.on("answer_call", (data: { pairingToken?: string }) => {
       if (data && data.pairingToken) {
         setActiveToken(data.pairingToken);
       }
@@ -638,6 +854,7 @@ export default function CallTrackerPage() {
     });
 
     return () => { clearAllTimers(); socket.disconnect(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language]);
 
   // ── Resilient polling fallback ─────────────────────────────────────────────
@@ -674,6 +891,25 @@ export default function CallTrackerPage() {
             `ដាច់ខាតកុំផ្តល់លេខសម្ងាត់ OTP ឬផ្ទេរប្រាក់ឱ្យសោះ។`,
           ];
 
+          let finalLat = ac.lat;
+          let finalLng = ac.lng;
+          let finalSource = ac.locationSource;
+
+          if (!finalLat || !finalLng) {
+            const coords = getDeterministicCoordinates(
+              ac.province || ac.location,
+              ac.district,
+              ac.commune,
+              ac.village
+            );
+            finalLat = coords.lat;
+            finalLng = coords.lng;
+            finalSource = coords.source;
+          }
+
+          const locationEn = formatLocationEn(ac.province || ac.location, ac.district, ac.commune, ac.village);
+          const locationKh = formatLocationKh(ac.province || ac.location, ac.district, ac.commune, ac.village);
+
           const polledScenario: Scenario = {
             id: `active-${ac.number}`,
             nameEn: ac.riskScore > 0 ? `Real Case: ${ac.riskScore}% Risk` : "Unknown GSM Caller",
@@ -681,12 +917,12 @@ export default function CallTrackerPage() {
             number: ac.number,
             category: ac.category || "OTHER",
             riskScore: ac.riskScore,
-            locationEn: ac.location || "Cambodia (National Mobile Range)",
-            locationKh: ac.location || "ប្រទេសកម្ពុជា",
-            lat: ac.lat || 11.5564,
-            lng: ac.lng || 104.9282,
+            locationEn,
+            locationKh,
+            lat: finalLat || 11.5564,
+            lng: finalLng || 104.9282,
             provider: ac.carrier || "Carrier Operator",
-            locationSource: ac.locationSource || (ac.lat && ac.lng ? "GPS Cellular Lock" : "Carrier Network (Estimated)"),
+            locationSource: finalSource || (ac.lat && ac.lng ? "GPS Cellular Lock" : "Carrier Network (Estimated)"),
             transcriptsEn,
             transcriptsKh,
           };
@@ -1149,9 +1385,9 @@ export default function CallTrackerPage() {
 
                           {/* Dynamic Target Blip / Lock */}
                           {signalLocked && (() => {
-                            // Use Cambodia center as fixed radar reference point
-                            const userLat = 11.5564;
-                            const userLng = 104.9282;
+                            // Use resolved laptop IP/browser coordinates as fixed radar reference point
+                            const userLat = laptopCoords.lat;
+                            const userLng = laptopCoords.lng;
                             const { x, y } = getRadarOffset(userLat, userLng, selectedScenario.lat, selectedScenario.lng);
                             
                             return (
