@@ -53,7 +53,10 @@ services:
       - PORT=4000
       - DATABASE_URL=postgresql://postgres:password123@db:5432/scamshield?schema=public
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=supersecretjwtsigningtokenkey123!
+      - JWT_ACCESS_SECRET=bf1b975836d52f8be8192a54bf9cf7be12ef93788220f8623dc7a8d56b1a03a7
+      - JWT_REFRESH_SECRET=ad59c258d6bc24b95f7f8ba1b7b84e183e1bb2fb73a57ed191254bf4fa4c6ae0
+      - DEFAULT_ADMIN_EMAIL=admin@scamshield.gov.kh
+      - DEFAULT_ADMIN_PASSWORD=Admin12345!
       - FRONTEND_URL=http://localhost
     depends_on:
       db:
