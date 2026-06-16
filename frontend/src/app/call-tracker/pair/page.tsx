@@ -36,9 +36,81 @@ export default function MobilePairPage() {
   const [activeRiskScore, setActiveRiskScore] = useState<number | null>(null);
   const [pairingToken, setPairingToken] = useState<string | null>(null);
   const pairingTokenRef = React.useRef<string | null>(null);
+
+  const [scannerActive, setScannerActive] = useState(false);
+  const [qrError, setQrError] = useState("");
+  const scannerRef = React.useRef<any>(null);
+
   React.useEffect(() => {
     pairingTokenRef.current = pairingToken;
   }, [pairingToken]);
+
+  // Clean up scanner on unmount
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+      }
+    };
+  }, []);
+
+  const startScanner = async () => {
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      setScannerActive(true);
+      setQrError("");
+      
+      const html5QrCode = new Html5Qrcode("reader");
+      scannerRef.current = html5QrCode;
+      
+      const qrCodeSuccessCallback = (decodedText: string) => {
+        stopScanner();
+        
+        try {
+          const urlObj = new URL(decodedText);
+          const params = urlObj.searchParams;
+          const num = params.get("number");
+          const token = params.get("token");
+          const cat = params.get("category");
+          const risk = params.get("riskScore");
+          
+          if (token) setPairingToken(token);
+          if (num) {
+            setActiveNumber(num);
+            setActiveCategory(cat || "OTHER");
+            setActiveRiskScore(Number(risk || "0"));
+          }
+        } catch (err) {
+          setQrError("Invalid QR Code decoded. Make sure you scanned the pairing QR from the desktop screen.");
+        }
+      };
+      
+      const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+      
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        qrCodeSuccessCallback,
+        () => {}
+      );
+    } catch (err: any) {
+      console.error("Failed to start scanner:", err);
+      setQrError("Could not access camera. Make sure you grant camera permission.");
+      setScannerActive(false);
+    }
+  };
+
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+      } catch (err) {
+        console.error("Failed to stop scanner:", err);
+      }
+      scannerRef.current = null;
+    }
+    setScannerActive(false);
+  };
 
   const localIp = typeof window !== "undefined" ? window.location.hostname : "localhost";
 
@@ -390,6 +462,54 @@ export default function MobilePairPage() {
             </div>
           )}
 
+
+          {/* ── Built-in Camera QR Scanner ── */}
+          <div className="rounded-2xl border border-white/5 bg-[rgba(13,18,30,0.88)] overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-white/5 bg-white/[0.02]">
+              <Smartphone className="h-4 w-4 text-red-500 animate-pulse" />
+              <h3 className="text-xs font-bold uppercase text-white tracking-wider">
+                {t("Scan QR Code to Pair", "ស្កេន QR កូដដើម្បីភ្ជាប់")}
+              </h3>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-slate-500 text-[11px] leading-relaxed">
+                {t(
+                  "Pair your mobile device with the desktop tracker directly. Click the button below to open your camera and scan the pairing QR code displayed on your computer.",
+                  "ភ្ជាប់ទូរស័ព្ទដៃរបស់អ្នកជាមួយប្រព័ន្ធត្រួតពិនិត្យលើកុំព្យូទ័រ។ ចុចប៊ូតុងខាងក្រោមដើម្បីបើកកាមេរ៉ាស្កេន QR កូដ។"
+                )}
+              </p>
+
+              {scannerActive ? (
+                <div className="space-y-4">
+                  <div id="reader" className="overflow-hidden rounded-xl border border-slate-800 bg-black/60 aspect-square max-w-[280px] mx-auto relative z-10" />
+                  <button
+                    type="button"
+                    onClick={stopScanner}
+                    className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition cursor-pointer active:scale-95"
+                  >
+                    {t("Cancel Scanner", "បោះបង់ការស្កេន")}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startScanner}
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-red-655 to-red-500 hover:from-red-550 hover:to-orange-500 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-md shadow-red-600/15 active:scale-[0.98] cursor-pointer"
+                >
+                  <Smartphone className="h-4.5 w-4.5 text-orange-400 animate-pulse" />
+                  {t("Open Camera Scanner", "បើកកាមេរ៉ាស្កេន")}
+                </button>
+              )}
+
+              {qrError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl flex gap-2 items-start animate-fade-in">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{qrError}</span>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* ── Webhook Connection Card ── */}
           <div className="rounded-2xl border border-white/5 bg-[rgba(13,18,30,0.88)] overflow-hidden">
