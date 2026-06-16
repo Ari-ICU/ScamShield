@@ -9,13 +9,13 @@ export function initSocket(server: HttpServer): SocketServer {
     cors: {
       origin: (origin, callback) => {
         if (!origin) return callback(null, true);
-        const isDev = process.env.NODE_ENV !== "production";
-        if (isDev) {
-          const isLocal = /^(https?:\/\/)?(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin);
-          if (isLocal) {
-            return callback(null, true);
-          }
+        
+        // Always allow local connections (localhost, local IPs) for development and local testing
+        const isLocal = /^(https?:\/\/)?(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin);
+        if (isLocal) {
+          return callback(null, true);
         }
+
         const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:3000";
         if (origin === allowedOrigin) {
           return callback(null, true);

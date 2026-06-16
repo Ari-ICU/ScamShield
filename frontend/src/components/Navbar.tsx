@@ -34,6 +34,20 @@ export default function Navbar() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  // Monitor scroll position to apply dynamic blurring
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 15) {
+        setScrolled(true);
+      } else {
+        setScrolled(false);
+      }
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -120,10 +134,10 @@ export default function Navbar() {
   const renderLanguageSwitcher = () => (
     <button
       onClick={() => setLanguage(language === "en" ? "kh" : "en")}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-350 hover:bg-slate-800 hover:text-white transition cursor-pointer shrink-0"
+      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700/60 text-slate-350 hover:text-white transition duration-300 ease-out cursor-pointer shrink-0 shadow-inner"
     >
-      <Globe className="h-3.5 w-3.5" />
-      <span>{language === "en" ? "ខ្មែរ" : "English"}</span>
+      <Globe className="h-4 w-4 text-red-500 animate-spin-slow" />
+      <span className="hidden sm:inline">{language === "en" ? "ខ្មែរ" : "EN"}</span>
     </button>
   );
 
@@ -133,16 +147,16 @@ export default function Navbar() {
       <div className="relative">
         <button
           onClick={() => setProfileOpen(!profileOpen)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-850 hover:text-white transition cursor-pointer select-none"
+          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-900/80 hover:bg-slate-850 border border-slate-800 hover:border-slate-700/50 text-slate-200 hover:text-white transition duration-300 ease-out cursor-pointer select-none shadow-md"
         >
-          <div className="h-5 w-5 rounded-full bg-red-500/10 border border-red-500/30 text-red-500 flex items-center justify-center font-bold text-[10px] font-mono uppercase shrink-0">
+          <div className="h-6 w-6 rounded-full bg-gradient-to-tr from-red-650 to-orange-500 text-white flex items-center justify-center font-extrabold text-[11px] font-mono uppercase shrink-0 shadow-lg shadow-red-650/15">
             {user.email[0]}
           </div>
-          <span className="max-w-[100px] truncate text-slate-300 text-xs hidden lg:inline-block">
+          <span className="max-w-[110px] truncate text-slate-350 text-xs hidden lg:inline-block font-sans font-medium">
             {user.email}
           </span>
           <svg
-            className={`h-3.5 w-3.5 text-slate-500 transition-transform ${profileOpen ? "rotate-180" : ""}`}
+            className={`h-3.5 w-3.5 text-slate-500 transition-transform duration-300 ${profileOpen ? "rotate-180 text-white" : ""}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -154,21 +168,21 @@ export default function Navbar() {
         {profileOpen && (
           <>
             <div className="fixed inset-0 z-40 cursor-default" onClick={() => setProfileOpen(false)} />
-            <div className="absolute right-0 mt-2 w-56 glass border border-slate-800 rounded-2xl shadow-2xl p-2 space-y-1 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-              <div className="px-3 py-2 border-b border-slate-900">
-                <p className="text-[9px] font-extrabold text-slate-550 uppercase tracking-widest">
-                  {language === "en" ? "Account" : "គណនី"}
+            <div className="absolute right-0 mt-2.5 w-60 glass border border-slate-800/80 rounded-2xl shadow-2xl p-2 space-y-1.5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+              <div className="px-3.5 py-2.5 border-b border-slate-900/60 bg-slate-950/20 rounded-t-xl">
+                <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">
+                  {language === "en" ? "Active User Account" : "គណនីប្រើប្រាស់"}
                 </p>
-                <p className="text-xs font-bold text-white truncate mt-0.5">{user.email}</p>
+                <p className="text-xs font-extrabold text-white truncate mt-0.5 font-mono">{user.email}</p>
               </div>
               
               {user.role === "ADMIN" && (
                 <Link
                   href="/admin"
                   onClick={() => setProfileOpen(false)}
-                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-900 transition"
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-900/80 border border-transparent hover:border-slate-800 transition duration-200"
                 >
-                  <ShieldCheck className="h-4 w-4 text-red-500" />
+                  <ShieldCheck className="h-4 w-4 text-red-500 shadow-sm" />
                   {t("adminPanel")}
                 </Link>
               )}
@@ -178,7 +192,7 @@ export default function Navbar() {
                   setProfileOpen(false);
                   logout();
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-955/10 transition text-left cursor-pointer"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-955/15 border border-transparent hover:border-red-900/10 transition duration-200 text-left cursor-pointer"
               >
                 <LogOut className="h-4 w-4" />
                 {t("logout")}
@@ -196,11 +210,11 @@ export default function Navbar() {
       <div className="relative">
         <button
           onClick={() => setNotifOpen(!notifOpen)}
-          className="relative p-2 px-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition cursor-pointer select-none"
+          className={`relative p-2 px-2.5 rounded-xl bg-slate-900/60 hover:bg-slate-800/80 border border-slate-805 hover:border-slate-700/65 text-slate-400 hover:text-white transition duration-300 ease-out cursor-pointer select-none ${unreadCount > 0 ? "shadow-md shadow-red-500/5 border-red-550/15" : ""}`}
         >
-          <Bell className="h-4 w-4" />
+          <Bell className={`h-4.5 w-4.5 ${unreadCount > 0 ? "animate-wiggle text-red-400" : ""}`} />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-655 text-[9px] font-black text-white border-2 border-slate-950 animate-bounce">
               {unreadCount}
             </span>
           )}
@@ -209,15 +223,15 @@ export default function Navbar() {
         {notifOpen && (
           <>
             <div className="fixed inset-0 z-40 cursor-default" onClick={() => setNotifOpen(false)} />
-            <div className="absolute right-0 mt-2 w-80 glass border border-slate-800 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-96 overflow-y-auto">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-900 mb-2">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                  {language === "en" ? "Notifications" : "សារជូនដំណឹង"}
+            <div className="absolute right-0 mt-2.5 w-80 glass border border-slate-800/80 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in slide-in-from-top-3 duration-200 max-h-[420px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
+              <div className="flex justify-between items-center pb-2.5 border-b border-slate-900/60 mb-2.5">
+                <h3 className="text-xs font-extrabold text-white uppercase tracking-wider font-sans">
+                  {language === "en" ? "Recent Security Feed" : "សារជូនដំណឹង"}
                 </h3>
                 {unreadCount > 0 && (
                   <button
                     onClick={handleMarkAllRead}
-                    className="text-[10px] font-semibold text-red-405 hover:text-red-300 cursor-pointer"
+                    className="text-[10px] font-bold text-red-500 hover:text-red-400 cursor-pointer transition"
                   >
                     {language === "en" ? "Mark all read" : "អានទាំងអស់"}
                   </button>
@@ -225,7 +239,7 @@ export default function Navbar() {
               </div>
 
               {notifications.length === 0 ? (
-                <div className="text-center py-6 text-slate-500 text-xs italic">
+                <div className="text-center py-8 text-slate-555 text-xs italic">
                   {language === "en" ? "No notifications yet." : "មិនទាន់មានសារជូនដំណឹងទេ។"}
                 </div>
               ) : (
@@ -234,32 +248,32 @@ export default function Navbar() {
                     <div
                       key={n.id}
                       onClick={() => handleMarkOneRead(n.id)}
-                      className={`p-2.5 rounded-xl text-xs transition cursor-pointer flex gap-2.5 items-start ${
+                      className={`p-3 rounded-xl text-xs transition duration-200 cursor-pointer flex gap-3 items-start border ${
                         n.read
-                          ? "bg-slate-900/40 text-slate-405 hover:bg-slate-900/60"
-                          : "bg-red-500/10 text-slate-200 border border-red-500/10 hover:bg-red-550/15"
+                          ? "bg-slate-900/30 text-slate-400 border-transparent hover:bg-slate-900/60"
+                          : "bg-red-500/5 text-slate-200 border-red-500/10 hover:bg-red-500/10"
                       }`}
                     >
                       <div className="mt-0.5 shrink-0">
                         {n.type === "WATCHLIST_UPDATE" ? (
-                          <ShieldAlert className="h-4 w-4 text-red-500" />
+                          <ShieldAlert className="h-4.5 w-4.5 text-red-500" />
                         ) : n.type === "APPEAL" ? (
-                          <PhoneCall className="h-4 w-4 text-yellow-500" />
+                          <PhoneCall className="h-4.5 w-4.5 text-yellow-500" />
                         ) : (
-                          <Users className="h-4 w-4 text-orange-500" />
+                          <Users className="h-4.5 w-4.5 text-orange-500" />
                         )}
                       </div>
                       <div className="flex-grow min-w-0">
-                        <p className="font-semibold truncate text-[11px]">{n.title}</p>
-                        <p className="mt-0.5 leading-relaxed text-slate-405 text-[10px]">
+                        <p className="font-bold truncate text-[11px] text-white">{n.title}</p>
+                        <p className="mt-1 leading-relaxed text-slate-400 text-[10px]">
                           {n.message}
                         </p>
-                        <p className="mt-1 text-[9px] text-slate-550">
+                        <p className="mt-1.5 text-[9px] text-slate-600 font-medium font-mono">
                           {new Date(n.createdAt).toLocaleDateString()}
                         </p>
                       </div>
                       {!n.read && (
-                        <div className="h-1.5 w-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />
+                        <div className="h-2 w-2 rounded-full bg-red-500 mt-2 shrink-0 animate-pulse shadow-sm shadow-red-500/50" />
                       )}
                     </div>
                   ))}
@@ -272,46 +286,74 @@ export default function Navbar() {
     );
   };
 
+  const renderMenuDropdown = () => (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-black bg-slate-900/60 hover:bg-slate-800/80 border border-slate-805 hover:border-slate-700/65 text-slate-200 hover:text-white transition duration-300 ease-out cursor-pointer select-none shadow-md active:scale-95"
+      >
+        {isOpen ? <X className="h-4.5 w-4.5 text-red-400" /> : <Menu className="h-4.5 w-4.5 text-orange-400" />}
+        <span>{language === "en" ? "Menu" : "ម៉ឺនុយ"}</span>
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsOpen(false)} />
+          <div className="absolute right-0 mt-2.5 w-64 glass border border-slate-800/80 rounded-2xl shadow-2xl p-2.5 space-y-1 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+            <div className="px-3 py-1.5 border-b border-slate-900/65 mb-1.5">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                {language === "en" ? "Navigation" : "ការរុករក"}
+              </span>
+            </div>
+            <div className="space-y-1">
+              {navLinks.map((link) => {
+                const Icon = link.icon;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setIsOpen(false)}
+                    className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-xs font-extrabold transition duration-200 border ${
+                      isActive(link.href)
+                        ? "bg-slate-900 border-slate-800 text-white shadow-inner"
+                        : "text-slate-400 border-transparent hover:text-white hover:bg-slate-900/60 hover:border-slate-850/30"
+                    }`}
+                  >
+                    <Icon className="h-4.5 w-4.5 shrink-0 text-red-500" />
+                    <span>{link.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   return (
-    <nav className="sticky top-0 z-50 glass border-b border-slate-800 bg-slate-950/95">
+    <nav className={`sticky top-0 z-50 transition-all duration-300 border-b ${
+      scrolled 
+        ? "bg-slate-950/85 backdrop-blur-md border-slate-900/80 py-2" 
+        : "bg-slate-950/95 border-slate-900/30 py-3"
+    }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
+        <div className="flex items-center justify-between h-14 gap-4">
           
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center">
-            <Link href="/" className="flex items-center gap-2 group">
-              <div className="p-2 bg-red-500/10 rounded-xl group-hover:bg-red-500/20 transition">
-                <ShieldAlert className="h-5 w-5 text-red-500" />
+            <Link href="/" className="flex items-center gap-2.5 group">
+              <div className="p-2.5 bg-gradient-to-tr from-red-650/10 to-orange-500/10 rounded-2xl group-hover:from-red-650/20 group-hover:to-orange-500/20 transition-all duration-300 border border-red-550/10 shadow-inner group-hover:scale-105">
+                <ShieldAlert className="h-5.5 w-5.5 text-red-500" />
               </div>
-              <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-red-500 via-orange-400 to-yellow-400 bg-clip-text text-transparent font-sans">
+              <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-red-500 via-orange-400 to-yellow-400 bg-clip-text text-transparent font-sans group-hover:brightness-110 transition duration-300">
                 ScamShield KH
               </span>
             </Link>
           </div>
 
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-1 overflow-x-auto py-1">
-            {navLinks.map((link) => {
-              const Icon = link.icon;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-                    isActive(link.href)
-                      ? "bg-slate-900 border border-slate-800 text-white shadow shadow-black/10"
-                      : "text-slate-400 hover:text-slate-205 hover:bg-slate-900/40"
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
-                  <span>{link.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Desktop Auth & Lang */}
-          <div className="hidden md:flex items-center gap-3 shrink-0">
+          {/* Right Action Icons & Unified Menu Dropdown */}
+          <div className="flex items-center gap-3 shrink-0 ml-auto">
             {renderLanguageSwitcher()}
 
             {renderNotifications()}
@@ -319,122 +361,29 @@ export default function Navbar() {
             {user ? (
               renderProfileDropdown()
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <Link
                   href="/login"
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-350 hover:text-white transition"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold text-slate-350 hover:text-white transition duration-200"
                 >
-                  <LogIn className="h-4 w-4" />
-                  {t("login")}
+                  <LogIn className="h-4.5 w-4.5 text-slate-400" />
+                  <span className="hidden sm:inline">{t("login")}</span>
                 </Link>
                 <Link
                   href="/register"
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-650 hover:bg-red-600 text-white transition shadow-lg shadow-red-600/20"
+                  className="px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-red-600 to-orange-500 hover:brightness-110 text-white transition-all duration-300 shadow-md shadow-red-500/10 hover:shadow-red-500/20 active:scale-95"
                 >
                   {t("register")}
                 </Link>
               </div>
             )}
+
+            {/* Unified Menu (Desktop + Mobile) */}
+            {renderMenuDropdown()}
           </div>
 
-          {/* Mobile menu button */}
-          <div className="flex md:hidden">
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 focus:outline-none transition cursor-pointer"
-            >
-              {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
         </div>
       </div>
-
-      {/* Mobile Menu */}
-      {isOpen && (
-        <div className="md:hidden glass border-b border-slate-800">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            {navLinks.map((link) => {
-              const Icon = link.icon;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setIsOpen(false)}
-                  className={`flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
-                    isActive(link.href)
-                      ? "bg-slate-900 border border-slate-800 text-white"
-                      : "text-slate-400 hover:text-white hover:bg-slate-900"
-                  }`}
-                >
-                  <Icon className="h-4.5 w-4.5 shrink-0" />
-                  <span>{link.label}</span>
-                </Link>
-              );
-            })}
-
-            {user?.role === "ADMIN" && (
-              <Link
-                href="/admin"
-                onClick={() => setIsOpen(false)}
-                className={`flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
-                  isActive("/admin")
-                    ? "bg-red-500/10 text-red-400 border border-red-500/15"
-                    : "text-red-450 hover:text-red-400 hover:bg-red-955/20"
-                }`}
-              >
-                <ShieldCheck className="h-4.5 w-4.5 shrink-0" />
-                <span>{t("adminPanel")}</span>
-              </Link>
-            )}
-
-            <div className="border-t border-slate-900 pt-4 pb-2 mt-2">
-              <div className="px-3 mb-4 flex justify-between items-center">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{language === "en" ? "Language" : "ភាសា"}</span>
-                {renderLanguageSwitcher()}
-              </div>
-
-              {user ? (
-                <div className="px-3 space-y-2">
-                  <div>
-                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{language === "en" ? "Logged in as" : "គណនី"}</div>
-                    <div className="text-xs text-slate-200 font-semibold truncate mt-0.5">
-                      {user.email}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setIsOpen(false);
-                      logout();
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white transition cursor-pointer"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    {t("logout")}
-                  </button>
-                </div>
-              ) : (
-                <div className="px-3 space-y-2">
-                  <Link
-                    href="/login"
-                    onClick={() => setIsOpen(false)}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-350 hover:text-white hover:bg-slate-900 transition"
-                  >
-                    <LogIn className="h-4 w-4" />
-                    {t("login")}
-                  </Link>
-                  <Link
-                    href="/register"
-                    onClick={() => setIsOpen(false)}
-                    className="w-full block text-center px-4 py-2.5 rounded-xl text-xs font-semibold bg-red-650 hover:bg-red-600 text-white transition shadow-lg shadow-red-600/20"
-                  >
-                    {t("register")}
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </nav>
   );
 }
